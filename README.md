@@ -7,7 +7,7 @@ have been knitted to `.md` files; Question 1 additionally includes a
 `.pptx` deliverable as required by the brief. Below I outline how I
 approached each question.
 
-- Question 1: Coffee Hub Analysis
+- **Question 1: Coffee Hub Analysis**
 
 I started by writing a `load_coffee()` function to fix the Excel/UTF-8
 encoding issues (`Latin-ASCII`), drop any coffees missing a roast or
@@ -21,7 +21,7 @@ or atleast tried to. My main conclusion was that roast and origin drive
 quality while price barely tracks rating. See `Question_1` folder for
 knitted file.
 
-- Question 2: Baby Names Analysis
+- **Question 2: Baby Names Analysis**
 
 This was my most statistically involved question. I loaded four datasets
 (baby names plus Billboard and HBO data), aggregated to the national
@@ -35,7 +35,7 @@ bubble charts. I concluded that modern names churn faster and are
 increasingly driven by music, TV and political culture. See `Question_2`
 folder for knitted file.
 
-- Question 3: Loan and Credit Analysis
+- **Question 3: Loan and Credit Analysis**
 
 I cleaned a one-million-row loan dataset (dropping columns more than 80%
 empty, fixing rate/term/employment formatting), and defined a clear
@@ -48,7 +48,7 @@ credit grade and interest rate dominate risk, Texas is statistically
 unremarkable, and a single national DTI cap is justified and I closed
 with concrete recommendations. See `Question_3` folder for knitted file.
 
-- Question 4: Netflix Analysis
+- **Question 4: Netflix Analysis**
 
 I combined three datasets (Titles, Movie_Info, Credits) through helper
 loaders, then ran a broad catalogue exploration: movies-vs-shows mix,
