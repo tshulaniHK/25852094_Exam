@@ -32,4 +32,4 @@ load_coffee <- function(path = "data/Coffee/Coffee.csv") {
 }
 
 # CALL IT PROPERLY
-coffee <- load_coffee("data/Coffee/Coffee.csv")
+
