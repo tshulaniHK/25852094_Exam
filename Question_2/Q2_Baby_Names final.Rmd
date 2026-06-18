@@ -24,7 +24,6 @@ library(tidyverse)
 library(scales)
 library(glue)
 library(knitr)
-library(kableExtra)
 
 # ── Source all helper functions from code/ ───────────────────────────────────
 list.files('code/', full.names = TRUE, recursive = TRUE) %>%
@@ -86,7 +85,7 @@ national %>%
 
 ---
 
-# Naming Persistence: Spearman Rank Correlation {.tabset}
+# Naming Persistence: Spearman Rank Correlation
 
 I compute **Spearman ρ** between each year's top-25 names and the rankings 1, 2 and 3 years later.
 
@@ -130,9 +129,7 @@ persistence_df %>%
               .groups = "drop") %>%
     mutate(Gender = if_else(Gender == "F", "Girls", "Boys")) %>%
     arrange(Gender, Lag, Era) %>%
-    kable(caption = "Mean Spearman ρ — Pre-1990 vs 1990 Onwards") %>%
-    kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
-    column_spec(4, bold = TRUE)
+    kable(caption = "Mean Spearman ρ — Pre-1990 vs 1990 Onwards")
 ```
 
 **Key findings:**
@@ -144,7 +141,7 @@ persistence_df %>%
 
 
 
-# Year-on-Year Surges {.tabset}
+# Year-on-Year Surges
 
 ## Top Surges Table
 
@@ -160,9 +157,8 @@ top_surges %>%
     mutate(Gender = if_else(Gender == "F", "Girl", "Boy"),
            Pct = paste0("+", round(Pct, 0), "%")) %>%
     slice_head(n = 15) %>%
-    kable(col.names = c("Name", "Gender", "Year", "Prev Year", "Surge Year", "Δ Count", "Δ%"),
-          caption = "Top 15 Biggest Year-on-Year Name Surges") %>%
-    kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+    kable(col.names = c("Name", "Gender", "Year", "Prev Year", "Surge Year", "Change", "Pct"),
+          caption = "Top 15 Biggest Year-on-Year Name Surges")
 ```
 
 **Notable entries:**
@@ -252,9 +248,8 @@ billboard_baby_match %>%
            Gender = if_else(Gender == "F", "Girl", "Boy")) %>%
     slice_head(n = 12) %>%
     kable(col.names = c("Name", "Gender", "Chart Peak", "Name Surge Year",
-                         "Billboard Weeks", "Prev Births", "Surge Births", "Δ%"),
-          caption = "Billboard Artists Whose Fame Coincides with Baby Name Surges") %>%
-    kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+                         "Billboard Weeks", "Prev Births", "Surge Births", "Pct"),
+          caption = "Billboard Artists Whose Fame Coincides with Baby Name Surges")
 ```
 
 **Key findings:**
@@ -265,7 +260,7 @@ billboard_baby_match %>%
 
 
 
-# HBO & TV/Movie Influence 
+# HBO & TV/Movie Influence
 
 ## HBO Name Trends
 
@@ -297,7 +292,7 @@ hbo_baby_overlay %>%
 
 
 
-# Decade Bubble Visualisation 
+# Decade Bubble Visualisation
 
 ## Boys
 
@@ -369,7 +364,7 @@ diversity_df %>%
 
 
 
-# All-Time Top Names {.tabset}
+# All-Time Top Names
 
 ## Girls
 
@@ -406,17 +401,15 @@ national %>%
 ```{r summary-table}
 tribble(
     ~Finding,                                                           ~Evidence,
-    "Post-1990 names are less persistent",                              "Spearman ρ drops significantly for 1–3 year lags after 1990",
-    "Girls' names churn faster than boys'",                             "Lower persistence ρ and faster diversity growth for girls",
+    "Post-1990 names are less persistent",                              "Spearman rho drops significantly for 1–3 year lags after 1990",
+    "Girls' names churn faster than boys'",                             "Lower persistence rho and faster diversity growth for girls",
     "Naming diversity has exploded",                                    "50%-coverage threshold grew from ~10 to 100+ names",
     "TV shows create instant name spikes",                              "Katina (1974), Arya/Khaleesi (2011+), Miley (2006)",
     "Music icons drive sustained naming trends",                        "Whitney (1985–92), Elvis (1950s), Aaliyah (1990s)",
     "Political figures can spike baby names",                           "Barack surged during the 2008 campaign",
     "Cultural names are individually smaller but collectively impactful","Each fad peaks lower but total variety is much higher"
 ) %>%
-    kable(caption = "Summary of Key Findings for the Toy Agency") %>%
-    kable_styling(bootstrap_options = c("striped", "hover"), full_width = TRUE) %>%
-    column_spec(1, bold = TRUE, width = "40%")
+    kable(caption = "Summary of Key Findings for the Toy Agency")
 ```
 
 **Recommendations for the toy agency:**
@@ -425,7 +418,3 @@ tribble(
 - **Track new TV/streaming character names** — unique fantasy names can emerge from zero to thousands within 2–3 years.
 - **Don't bet on longevity** — modern name trends last ~5–10 years at most; refresh toy character names every product cycle.
 - **Classic names still have a floor** — James, William, Sophia, and Olivia remain safe bets for broad-market appeal.
-
-
-
-

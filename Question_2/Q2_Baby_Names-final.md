@@ -1,30 +1,12 @@
----
-title: "US Baby Naming Trends & Cultural Influences"
-subtitle: "Question 2 — Stellenbosch University 2026 Data Science Practical"
-author: "Data Science Report for Toy Design Agency"
-date: "`r format(Sys.Date(), '%B %d, %Y')`"
-output:
-  md_document:
-    variant: markdown_github
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-    echo = TRUE, message = FALSE, warning = FALSE,
-    fig.align = "center", dpi = 150
-)
-```
-
 # Setup
 
 ## Libraries & Source Scripts
 
-```{r source-all}
+``` r
 library(tidyverse)
 library(scales)
 library(glue)
 library(knitr)
-library(kableExtra)
 
 # ── Source all helper functions from code/ ───────────────────────────────────
 list.files('code/', full.names = TRUE, recursive = TRUE) %>%
@@ -35,7 +17,7 @@ list.files('code/', full.names = TRUE, recursive = TRUE) %>%
 
 ## Load Data
 
-```{r load-data}
+``` r
 rds_paths <- c(
     Baby_Names        = "data/US_Baby_names/Baby_Names_By_US_State.rds",
     Top_100_Billboard = "data/US_Baby_names/charts.rds",
@@ -54,15 +36,14 @@ HBO_credits       <- datasets$HBO_credits
 national <- aggregate_national(Baby_Names)
 ```
 
-
 # Exploratory Overview
 
-```{r overview-stats}
+``` r
 year_range <- range(national$Year)
 n_unique   <- n_distinct(national$Name)
 ```
 
-```{r overview-plot, fig.height=5}
+``` r
 national %>%
     group_by(Year, Gender) %>%
     summarise(Births = sum(Total), .groups = "drop") %>%
@@ -78,27 +59,32 @@ national %>%
     theme(legend.position = "top")
 ```
 
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/overview-plot-1.png" alt="" style="display: block; margin: auto;" />
+
 **Key observations:**
 
-- The dataset covers **`r comma(n_unique)`** unique names from **`r year_range[1]`** to **`r year_range[2]`**.
+- The dataset covers **30,274** unique names from **1910** to **2014**.
 - Both genders peak in the late 1950s–1960s (baby boom), then decline.
-- Girls' names are more diverse — the same total births spread across more unique names.
+- Girls’ names are more diverse — the same total births spread across
+  more unique names.
 
----
+------------------------------------------------------------------------
 
-# Naming Persistence: Spearman Rank Correlation {.tabset}
+# Naming Persistence: Spearman Rank Correlation
 
-I compute **Spearman ρ** between each year's top-25 names and the rankings 1, 2 and 3 years later.
+I compute **Spearman ρ** between each year’s top-25 names and the
+rankings 1, 2 and 3 years later.
 
-> ρ ≈ 1 → same names stayed popular in the same order; ρ ≈ 0 → rankings completely shuffled.
+> ρ ≈ 1 → same names stayed popular in the same order; ρ ≈ 0 → rankings
+> completely shuffled.
 
 ## Time-Series Plot
 
-```{r persistence-compute}
+``` r
 persistence_df <- build_persistence_grid(national, lags = 1:3)
 ```
 
-```{r persistence-plot, fig.height=7}
+``` r
 persistence_df %>%
     mutate(
         Gender_label = if_else(Gender == "F", "Girls", "Boys"),
@@ -119,9 +105,11 @@ persistence_df %>%
     theme(legend.position = "top")
 ```
 
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/persistence-plot-1.png" alt="" style="display: block; margin: auto;" />
+
 ## Pre- vs Post-1990
 
-```{r persistence-table}
+``` r
 persistence_df %>%
     mutate(Era = if_else(Year < 1990, "Pre-1990", "1990 onwards")) %>%
     group_by(Era, Gender, Lag) %>%
@@ -130,55 +118,95 @@ persistence_df %>%
               .groups = "drop") %>%
     mutate(Gender = if_else(Gender == "F", "Girls", "Boys")) %>%
     arrange(Gender, Lag, Era) %>%
-    kable(caption = "Mean Spearman ρ — Pre-1990 vs 1990 Onwards") %>%
-    kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
-    column_spec(4, bold = TRUE)
+    kable(caption = "Mean Spearman ρ — Pre-1990 vs 1990 Onwards")
 ```
+
+| Era          | Gender | Lag | Mean_rho | Median_rho |
+|:-------------|:-------|----:|---------:|-----------:|
+| 1990 onwards | Boys   |   1 |    0.950 |      0.952 |
+| Pre-1990     | Boys   |   1 |    0.981 |      0.987 |
+| 1990 onwards | Boys   |   2 |    0.891 |      0.905 |
+| Pre-1990     | Boys   |   2 |    0.958 |      0.968 |
+| 1990 onwards | Boys   |   3 |    0.836 |      0.852 |
+| Pre-1990     | Boys   |   3 |    0.934 |      0.950 |
+| 1990 onwards | Girls  |   1 |    0.937 |      0.940 |
+| Pre-1990     | Girls  |   1 |    0.952 |      0.960 |
+| 1990 onwards | Girls  |   2 |    0.868 |      0.870 |
+| Pre-1990     | Girls  |   2 |    0.900 |      0.914 |
+| 1990 onwards | Girls  |   3 |    0.815 |      0.809 |
+| Pre-1990     | Girls  |   3 |    0.853 |      0.867 |
+
+Mean Spearman ρ — Pre-1990 vs 1990 Onwards
 
 **Key findings:**
 
-- **Confirmed:** Post-1990 naming trends show **lower persistence** — popular names churn faster for both genders.
-- The decline is most visible at longer lags: the 3-year lag ρ dropped from ~0.93 (boys) and ~0.85 (girls) pre-1990 to ~0.84 and ~0.82 post-1990.
-- Boys' persistence dropped **more sharply** than girls', narrowing the historical gender gap — both genders are now converging toward faster naming churn.
-- This supports the agency's hypothesis: since the 1990s, popular name trends have been slower to persist than in earlier decades.
+- **Confirmed:** Post-1990 naming trends show **lower persistence** —
+  popular names churn faster for both genders.
+- The decline is most visible at longer lags: the 3-year lag ρ dropped
+  from ~0.93 (boys) and ~0.85 (girls) pre-1990 to ~0.84 and ~0.82
+  post-1990.
+- Boys’ persistence dropped **more sharply** than girls’, narrowing the
+  historical gender gap — both genders are now converging toward faster
+  naming churn.
+- This supports the agency’s hypothesis: since the 1990s, popular name
+  trends have been slower to persist than in earlier decades.
 
-
-
-# Year-on-Year Surges {.tabset}
+# Year-on-Year Surges
 
 ## Top Surges Table
 
-```{r surges-compute}
+``` r
 yoy <- compute_yoy_change(national, min_prev = 50)
 
 top_surges <- yoy %>% arrange(desc(Pct)) %>% slice_head(n = 30)
 ```
 
-```{r surges-table}
+``` r
 top_surges %>%
     select(Name, Gender, Year, Prev, Total, Change, Pct) %>%
     mutate(Gender = if_else(Gender == "F", "Girl", "Boy"),
            Pct = paste0("+", round(Pct, 0), "%")) %>%
     slice_head(n = 15) %>%
-    kable(col.names = c("Name", "Gender", "Year", "Prev Year", "Surge Year", "Δ Count", "Δ%"),
-          caption = "Top 15 Biggest Year-on-Year Name Surges") %>%
-    kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+    kable(col.names = c("Name", "Gender", "Year", "Prev Year", "Surge Year", "Change", "Pct"),
+          caption = "Top 15 Biggest Year-on-Year Name Surges")
 ```
+
+| Name     | Gender | Year | Prev Year | Surge Year | Change | Pct    |
+|:---------|:-------|-----:|----------:|-----------:|-------:|:-------|
+| Marquita | Girl   | 1983 |        96 |       2522 |   2426 | +2527% |
+| Woodrow  | Boy    | 1912 |        82 |       1826 |   1744 | +2127% |
+| Nevaeh   | Girl   | 2001 |        53 |       1179 |   1126 | +2125% |
+| Tammy    | Girl   | 1957 |       204 |       4363 |   4159 | +2039% |
+| Devante  | Boy    | 1992 |        86 |       1551 |   1465 | +1703% |
+| Kiara    | Girl   | 1989 |       171 |       2595 |   2424 | +1418% |
+| Jayceon  | Boy    | 2013 |       128 |       1827 |   1699 | +1327% |
+| Tennille | Girl   | 1976 |        53 |        736 |    683 | +1289% |
+| Dawson   | Boy    | 1998 |       141 |       1883 |   1742 | +1235% |
+| Desiree  | Girl   | 1955 |        55 |        723 |    668 | +1215% |
+| Brianne  | Girl   | 1979 |       133 |       1655 |   1522 | +1144% |
+| Ashanti  | Girl   | 2002 |       253 |       2927 |   2674 | +1057% |
+| Ashton   | Girl   | 1986 |        83 |        916 |    833 | +1004% |
+| Sabrina  | Girl   | 1955 |       103 |       1091 |    988 | +959%  |
+| Amaya    | Girl   | 1999 |        63 |        656 |    593 | +941%  |
+
+Top 15 Biggest Year-on-Year Name Surges
 
 **Notable entries:**
 
-- **Nevaeh** (+2,125% in 2001) is "heaven" spelled backwards — a name that was essentially invented
-  by musician Sonny Sandoval when he appeared on MTV and mentioned naming his daughter Nevaeh.
-  It went from 53 births to over 1,000 in a single year.
-- **Woodrow** (+2,127% in 1912) coincides precisely with Woodrow Wilson's presidential campaign,
-  confirming that political naming influence is not a modern phenomenon.
-- **Tammy** (+2,039% in 1957) surged alongside the hit film *Tammy and the Bachelor* starring
-  Debbie Reynolds, whose theme song topped the Billboard charts.
-
+- **Nevaeh** (+2,125% in 2001) is “heaven” spelled backwards — a name
+  that was essentially invented by musician Sonny Sandoval when he
+  appeared on MTV and mentioned naming his daughter Nevaeh. It went from
+  53 births to over 1,000 in a single year.
+- **Woodrow** (+2,127% in 1912) coincides precisely with Woodrow
+  Wilson’s presidential campaign, confirming that political naming
+  influence is not a modern phenomenon.
+- **Tammy** (+2,039% in 1957) surged alongside the hit film *Tammy and
+  the Bachelor* starring Debbie Reynolds, whose theme song topped the
+  Billboard charts.
 
 ## Cultural Spike Case Studies
 
-```{r cultural-spikes, fig.height=6}
+``` r
 cultural_trends <- build_cultural_trends(national)
 
 cultural_trends %>%
@@ -194,24 +222,28 @@ cultural_trends %>%
     theme(strip.text = element_text(face = "bold", size = 9))
 ```
 
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/cultural-spikes-1.png" alt="" style="display: block; margin: auto;" />
+
 **Key findings:**
 
 - **Katina** spikes in 1974 (TV character on *Where the Heart Is*).
-- **Whitney** surged through the mid-1980s with Whitney Houston's career.
-- **Ariel** jumped after *The Little Mermaid* (1989); **Miley** didn't exist before *Hannah Montana* (2006).
-- **Daenerys** / **Khaleesi** are entirely new names created by *Game of Thrones*.
-
+- **Whitney** surged through the mid-1980s with Whitney Houston’s
+  career.
+- **Ariel** jumped after *The Little Mermaid* (1989); **Miley** didn’t
+  exist before *Hannah Montana* (2006).
+- **Daenerys** / **Khaleesi** are entirely new names created by *Game of
+  Thrones*.
 
 # Billboard Music Influence
 
 ## Artist–Baby Overlay
 
-```{r billboard-process}
+``` r
 billboard_names   <- parse_billboard_artists(Top_100_Billboard)
 billboard_summary <- summarise_billboard(billboard_names)
 ```
 
-```{r billboard-overlay, fig.height=7}
+``` r
 music_names   <- c("Whitney", "Adele", "Rihanna", "Beyonce", "Elvis", "Madonna")
 music_overlay <- build_music_overlay(music_names, national, billboard_summary)
 
@@ -228,9 +260,11 @@ music_overlay %>%
     theme(legend.position = "top", strip.text = element_text(face = "bold"))
 ```
 
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/billboard-overlay-1.png" alt="" style="display: block; margin: auto;" />
+
 ## Systematic Match Table
 
-```{r billboard-match}
+``` r
 top_billboard <- billboard_summary %>%
     group_by(Name) %>%
     summarise(Total_Weeks = sum(weeks_charting),
@@ -252,29 +286,45 @@ billboard_baby_match %>%
            Gender = if_else(Gender == "F", "Girl", "Boy")) %>%
     slice_head(n = 12) %>%
     kable(col.names = c("Name", "Gender", "Chart Peak", "Name Surge Year",
-                         "Billboard Weeks", "Prev Births", "Surge Births", "Δ%"),
-          caption = "Billboard Artists Whose Fame Coincides with Baby Name Surges") %>%
-    kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+                         "Billboard Weeks", "Prev Births", "Surge Births", "Pct"),
+          caption = "Billboard Artists Whose Fame Coincides with Baby Name Surges")
 ```
+
+| Name | Gender | Chart Peak | Name Surge Year | Billboard Weeks | Prev Births | Surge Births | Pct |
+|:-------|:-----|--------:|------------:|------------:|---------:|----------:|:-----|
+| Tennille | Girl | 1976 | 1976 | 198 | 53 | 736 | +1289% |
+| Ashanti | Girl | 2002 | 2002 | 289 | 253 | 2927 | +1057% |
+| Mya | Girl | 2000 | 1998 | 181 | 136 | 1251 | +820% |
+| Miley | Girl | 2009 | 2007 | 348 | 141 | 1213 | +760% |
+| Shanice | Girl | 1992 | 1992 | 106 | 259 | 1837 | +609% |
+| Sheena | Girl | 1981 | 1981 | 290 | 101 | 628 | +522% |
+| Sade | Girl | 1985 | 1986 | 140 | 355 | 1214 | +242% |
+| Brantley | Boy | 2014 | 2011 | 164 | 284 | 951 | +235% |
+| Shania | Girl | 1999 | 1996 | 298 | 546 | 1827 | +235% |
+| Emerson | Girl | 2002 | 2005 | 112 | 221 | 659 | +198% |
+| Beyonce | Girl | 2009 | 2007 | 884 | 56 | 145 | +159% |
+| Ciara | Girl | 2005 | 2005 | 339 | 954 | 2308 | +142% |
+
+Billboard Artists Whose Fame Coincides with Baby Name Surges
 
 **Key findings:**
 
-- **Whitney** is the clearest example: Billboard dominance → massive baby name surge.
+- **Whitney** is the clearest example: Billboard dominance → massive
+  baby name surge.
 - **Elvis** shows a mid-1950s spike timed with his breakthrough.
-- Effect is strongest for **solo female artists** with distinctive first names.
+- Effect is strongest for **solo female artists** with distinctive first
+  names.
 
-
-
-# HBO & TV/Movie Influence 
+# HBO & TV/Movie Influence
 
 ## HBO Name Trends
 
-```{r hbo-process}
+``` r
 hbo_names   <- extract_hbo_names(HBO_credits, HBO_titles)
 hbo_popular <- summarise_hbo_names(hbo_names)
 ```
 
-```{r hbo-plot, fig.height=7}
+``` r
 hbo_spotlight     <- c("Carrie", "Arya", "Dorothy", "Tony", "Sophia", "Olivia")
 hbo_baby_overlay  <- build_hbo_baby_overlay(hbo_spotlight, national, hbo_names)
 
@@ -289,19 +339,21 @@ hbo_baby_overlay %>%
     theme(strip.text = element_text(face = "bold"))
 ```
 
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/hbo-plot-1.png" alt="" style="display: block; margin: auto;" />
+
 **Key findings:**
 
-- **Arya** was nearly non-existent before *Game of Thrones* (2011) — textbook cultural naming.
-- **Tony** (The Sopranos) had an established baseline — cultural reinforcement rather than creation.
+- **Arya** was nearly non-existent before *Game of Thrones* (2011) —
+  textbook cultural naming.
+- **Tony** (The Sopranos) had an established baseline — cultural
+  reinforcement rather than creation.
 - **Sophia** and **Olivia** rose independently of any single show.
 
-
-
-# Decade Bubble Visualisation 
+# Decade Bubble Visualisation
 
 ## Boys
 
-```{r bubble-boys, fig.height=8, fig.width=12}
+``` r
 boys_bubble <- top_names_by_decade(national, "M", n = 10)
 
 cultural_boy_names <- c("Elvis", "Barack", "Jayden", "Muhammad", "Kanye")
@@ -320,9 +372,11 @@ boys_bubble %>%
           legend.position = "right")
 ```
 
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/bubble-boys-1.png" alt="" style="display: block; margin: auto;" />
+
 ## Girls
 
-```{r bubble-girls, fig.height=8, fig.width=12}
+``` r
 girls_bubble <- top_names_by_decade(national, "F", n = 10)
 
 cultural_girl_names <- c("Whitney", "Ariel", "Miley", "Aaliyah",
@@ -342,11 +396,13 @@ girls_bubble %>%
           legend.position = "right")
 ```
 
----
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/bubble-girls-1.png" alt="" style="display: block; margin: auto;" />
+
+------------------------------------------------------------------------
 
 # Name Diversity Over Time
 
-```{r diversity-plot, fig.height=5}
+``` r
 diversity_df <- build_diversity_df(national)
 
 diversity_df %>%
@@ -361,19 +417,22 @@ diversity_df %>%
     theme(legend.position = "top")
 ```
 
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/diversity-plot-1.png" alt="" style="display: block; margin: auto;" />
+
 **Key findings:**
 
-- In 1910, fewer than **10 names** covered half of all births per gender.
-- By 2014, it takes **50+** (boys) and **100+** (girls) names to reach the same threshold.
-- Confirms the persistence analysis: modern parents are far more creative.
+- In 1910, fewer than **10 names** covered half of all births per
+  gender.
+- By 2014, it takes **50+** (boys) and **100+** (girls) names to reach
+  the same threshold.
+- Confirms the persistence analysis: modern parents are far more
+  creative.
 
-
-
-# All-Time Top Names {.tabset}
+# All-Time Top Names
 
 ## Girls
 
-```{r top10-girls, fig.height=6}
+``` r
 national %>%
     filter(Name %in% get_alltime_top(national, "F"), Gender == "F") %>%
     ggplot(aes(x = Year, y = Total, colour = Name)) +
@@ -385,9 +444,11 @@ national %>%
     theme_minimal(base_size = 12)
 ```
 
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/top10-girls-1.png" alt="" style="display: block; margin: auto;" />
+
 ## Boys
 
-```{r top10-boys, fig.height=6}
+``` r
 national %>%
     filter(Name %in% get_alltime_top(national, "M"), Gender == "M") %>%
     ggplot(aes(x = Year, y = Total, colour = Name)) +
@@ -399,33 +460,43 @@ national %>%
     theme_minimal(base_size = 12)
 ```
 
-
+<img src="Q2_Baby_Names-final_files/figure-markdown_github/top10-boys-1.png" alt="" style="display: block; margin: auto;" />
 
 # Summary & Recommendations
 
-```{r summary-table}
+``` r
 tribble(
     ~Finding,                                                           ~Evidence,
-    "Post-1990 names are less persistent",                              "Spearman ρ drops significantly for 1–3 year lags after 1990",
-    "Girls' names churn faster than boys'",                             "Lower persistence ρ and faster diversity growth for girls",
+    "Post-1990 names are less persistent",                              "Spearman rho drops significantly for 1–3 year lags after 1990",
+    "Girls' names churn faster than boys'",                             "Lower persistence rho and faster diversity growth for girls",
     "Naming diversity has exploded",                                    "50%-coverage threshold grew from ~10 to 100+ names",
     "TV shows create instant name spikes",                              "Katina (1974), Arya/Khaleesi (2011+), Miley (2006)",
     "Music icons drive sustained naming trends",                        "Whitney (1985–92), Elvis (1950s), Aaliyah (1990s)",
     "Political figures can spike baby names",                           "Barack surged during the 2008 campaign",
     "Cultural names are individually smaller but collectively impactful","Each fad peaks lower but total variety is much higher"
 ) %>%
-    kable(caption = "Summary of Key Findings for the Toy Agency") %>%
-    kable_styling(bootstrap_options = c("striped", "hover"), full_width = TRUE) %>%
-    column_spec(1, bold = TRUE, width = "40%")
+    kable(caption = "Summary of Key Findings for the Toy Agency")
 ```
+
+| Finding | Evidence |
+|:------------------------------------|:----------------------------------|
+| Post-1990 names are less persistent | Spearman rho drops significantly for 1–3 year lags after 1990 |
+| Girls’ names churn faster than boys’ | Lower persistence rho and faster diversity growth for girls |
+| Naming diversity has exploded | 50%-coverage threshold grew from ~10 to 100+ names |
+| TV shows create instant name spikes | Katina (1974), Arya/Khaleesi (2011+), Miley (2006) |
+| Music icons drive sustained naming trends | Whitney (1985–92), Elvis (1950s), Aaliyah (1990s) |
+| Political figures can spike baby names | Barack surged during the 2008 campaign |
+| Cultural names are individually smaller but collectively impactful | Each fad peaks lower but total variety is much higher |
+
+Summary of Key Findings for the Toy Agency
 
 **Recommendations for the toy agency:**
 
-- **Monitor Billboard & streaming charts** — artist first names influence baby naming within 1–3 years of peak fame.
-- **Track new TV/streaming character names** — unique fantasy names can emerge from zero to thousands within 2–3 years.
-- **Don't bet on longevity** — modern name trends last ~5–10 years at most; refresh toy character names every product cycle.
-- **Classic names still have a floor** — James, William, Sophia, and Olivia remain safe bets for broad-market appeal.
-
-
-
-
+- **Monitor Billboard & streaming charts** — artist first names
+  influence baby naming within 1–3 years of peak fame.
+- **Track new TV/streaming character names** — unique fantasy names can
+  emerge from zero to thousands within 2–3 years.
+- **Don’t bet on longevity** — modern name trends last ~5–10 years at
+  most; refresh toy character names every product cycle.
+- **Classic names still have a floor** — James, William, Sophia, and
+  Olivia remain safe bets for broad-market appeal.
