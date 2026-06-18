@@ -73,6 +73,15 @@ Loan_df %>%
 | Default    |  86079 | 8.6%  |
 | Other      |  19130 | 1.9%  |
 
+**Reading the outcome split.** We start with **1,000,000 loans and 145
+columns**; dropping any column that is more than 80% empty leaves 108
+usable columns without throwing away a single loan. Most of the book is
+still **live** — 59.8% of loans are *Current* and haven’t reached a
+final outcome yet, so they can’t tell us anything about repayment.
+*Fully Paid* (29.7%) and *Default* (8.6%) are the only **resolved**
+outcomes, with a small *Other* bucket (1.9%, e.g. charged-off/grace
+categories that don’t map cleanly).
+
 From here we focus on **closed loans only** (Fully Paid vs Default) so
 the comparisons are fair.
 
@@ -82,6 +91,14 @@ glue("{nrow(closed)} closed loans — overall default rate: {sprintf('%.1f%%', m
 ```
 
     ## 383202 closed loans — overall default rate: 22.5%
+
+**Why the default rate jumps to 22.5%.** Restricting to the **383,202
+resolved loans** changes the denominator: defaults are 8.6% of the
+*whole* book but **22.5% of loans that have actually finished** (86,079
+÷ 383,202). This conditional rate is the honest baseline for the rest of
+the analysis — every group default rate below should be read against
+this **22.5% benchmark**: above it = riskier than average, below it =
+safer.
 
 ------------------------------------------------------------------------
 
@@ -114,10 +131,16 @@ rate_tables$grade %>%
     theme_q3()
 ```
 
-<img src="finalQ3_files/figure-markdown_github/grade-plot-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/grade-plot-1.png" alt="" style="display: block; margin: auto;" />
 
-Grades clearly separate good borrowers from risky ones — A-grade
-borrowers default far less than F or G.
+**Credit grade is the single strongest signal.** Default rates climb
+almost perfectly monotonically — **A 6.9% → B 15.6% → C 25.3% → D 34.6%
+→ E 43.1% → F 52.4% → G 57.3%**. A G-grade borrower is **roughly 8× more
+likely to default than an A-grade borrower**, and by grade E it is
+closer to a coin-flip than a loan. The grade boundary that matters most
+operationally is **C (25.3%), which is already above the 22.5% book
+average** — so risk crosses the “worse than typical” line as early as
+grade C, not at the D–G tail.
 
 ## Loan Purpose
 
@@ -135,7 +158,18 @@ rate_tables$purpose %>%
     theme_q3()
 ```
 
-<img src="finalQ3_files/figure-markdown_github/purpose-plot-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/purpose-plot-1.png" alt="" style="display: block; margin: auto;" />
+
+**Small-business lending stands out as the riskiest purpose.** At
+**33.3%** it is well clear of the next tier — *renewable energy*
+(25.7%), *moving* (25.2%) and *medical* (24.7%) — all of which sit just
+above the book average. The largest category in practice, **debt
+consolidation (23.8%)**, is essentially average. The safest reasons to
+borrow are asset-backed or routine: **car (16.6%)**, **home improvement
+(19.3%)** and **credit card (19.5%)** all sit comfortably below 22.5%.
+The spread (16.6% → 33.3%) is meaningful but much narrower than the
+grade spread, so purpose is a useful secondary filter rather than a
+primary one.
 
 ## Loan Term and Home Ownership
 
@@ -159,10 +193,18 @@ p2 <- rate_tables$home_ownership %>%
 p1 + p2
 ```
 
-<img src="finalQ3_files/figure-markdown_github/term-home-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/term-home-1.png" alt="" style="display: block; margin: auto;" />
 
-60-month loans default more than 36-month ones. Renters default a bit
-more than homeowners, but the gap is small.
+**Term length is a major driver; home ownership is a minor one.**
+Stretching a loan from 36 to 60 months nearly **doubles** the default
+rate (**19.0% → 34.5%**) — longer terms mean more time for a borrower’s
+circumstances to deteriorate, and 60-month loans also tend to go to
+weaker credits. Home ownership moves the needle far less: **MORTGAGE
+18.8% \< OWN 22.8% \< RENT 27.0%**. Renters default about 8 points more
+than mortgage-holders, but note the ordering — borrowers who **own
+outright (22.8%) default slightly more than those still paying a
+mortgage (18.8%)**, suggesting the mortgage group captures vetted,
+higher-income borrowers rather than ownership *per se* being protective.
 
 ## Income and DTI
 
@@ -186,9 +228,18 @@ p4 <- rate_tables$dti_band %>%
 p3 + p4
 ```
 
-<img src="finalQ3_files/figure-markdown_github/income-dti-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/income-dti-1.png" alt="" style="display: block; margin: auto;" />
 
-Lower income and higher DTI both push default rates up — as expected.
+**Both income and DTI behave exactly as theory predicts, and both are
+smooth gradients rather than cliffs.** Default risk falls steadily with
+income — **\<30k 28.7% → 150k+ 16.1%** — a ~13-point swing from the
+poorest to the richest band. It rises just as steadily with leverage —
+**DTI \<10 16.8% → 30+ 31.7%** — roughly doubling across the range. Two
+practical notes: the **`NA` bars (income 20.1%, DTI 21.5%) sit near the
+average**, so missing values aren’t hiding unusually risky borrowers;
+and because the DTI relationship is a *gradient with no sharp break*,
+any hard DTI cut-off (Section 4) is a judgement call about where on the
+slope to draw the line, not a natural cliff in the data.
 
 ------------------------------------------------------------------------
 
@@ -220,6 +271,12 @@ tibble(
 | DTI            | Above 25                  |
 | Home Ownership | Renters (slightly higher) |
 
+**The risk factors stack.** None of these is the whole story on its own,
+but they compound: a low-grade, low-income borrower taking a 60-month
+small-business loan at high DTI carries risk from every column at once,
+which is exactly the profile that pushes well past the 22.5% baseline
+toward the 40–55% range seen in the grade and interest-rate views.
+
 And if we look at interest rate — borrowers paying higher rates are more
 likely to default:
 
@@ -241,7 +298,18 @@ closed %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-<img src="finalQ3_files/figure-markdown_github/int-rate-plot-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/int-rate-plot-1.png" alt="" style="display: block; margin: auto;" />
+
+**Interest rate is the cleanest monotonic predictor of all.** Default
+rate climbs almost in a straight line from **~5.5% in the 4–7% rate band
+to ~49% in the 25–28% band** — close to a 9× gradient with no reversal.
+This is partly mechanical (the lender already prices observed risk into
+the rate, so rate is a *summary* of grade, term and DTI), and partly a
+feedback loop worth flagging: the highest-rate borrowers are the ones
+least able to absorb a high rate, so the pricing that is meant to
+compensate for risk may itself **add** to it. Because rate bundles the
+other signals, it is the most useful single field for a quick risk read,
+but it should not be treated as an *independent* cause.
 
 ------------------------------------------------------------------------
 
@@ -270,7 +338,17 @@ dti_curve %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-<img src="finalQ3_files/figure-markdown_github/dti-curve-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/dti-curve-1.png" alt="" style="display: block; margin: auto;" />
+
+**The curve has a flat floor and then a steady climb — no clean cliff.**
+From DTI 0 to ~10 the default rate is essentially flat at its **floor of
+~17%** (it even dips slightly around 8–10). It then rises continuously:
+~20% by DTI 14, ~24% by DTI 22, ~28% by DTI 28, and into the **32–34%
+range above DTI 34**. The key takeaway for setting a cap is that the
+curve **accelerates through the low-to-mid 20s** — that is the “elbow”
+the subtitle refers to — but there is no single DTI value where risk
+suddenly explodes, so the cap is a risk-appetite choice along a smooth
+slope.
 
 Suggested caps depending on how much risk the Institute is willing to
 accept:
@@ -300,6 +378,30 @@ dti_caps %>% kable(format = "pipe")
 | 18%            |                12 |
 | 20%            |                16 |
 
+**Important: read this table together with the floor of the curve.** The
+rule here is *“find the highest DTI band whose default rate still sits
+at or below the chosen tolerance.”* Because the **minimum default rate
+anywhere on the curve is ~16.8%**, any tolerance *below* that floor is
+unachievable — that is why **12% and 15% return `-Inf`** (no band
+qualifies, so the maximum of an empty set is `-Inf`). Only the **18%
+(cap ≈ 12)** and **20% (cap ≈ 16)** tolerances are attainable, and even
+those force a strict cut-off because the whole closed book averages
+22.5%.
+
+So there are **two legitimate ways to set the cap, and they give
+different numbers**:
+
+- **Absolute-tolerance rule (this table):** to hold defaults at/under
+  ~18–20%, the cap must be tight — **DTI ≈ 12–16**.
+- **Elbow / “where risk accelerates” rule (the curve):** if the goal is
+  instead to cut off the steep part of the slope rather than hit an
+  absolute rate, the cap lands higher, around **DTI 20–25**.
+
+The right choice depends on the Director’s objective (a hard loss target
+vs. trimming the worst of the tail); the recommendation in Section 7 is
+framed around the elbow, but the absolute-tolerance numbers above are
+the stricter, loss-target answer.
+
 ## Does it differ by state?
 
 ``` r
@@ -320,10 +422,15 @@ closed %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-<img src="finalQ3_files/figure-markdown_github/dti-state-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/dti-state-1.png" alt="" style="display: block; margin: auto;" />
 
-Texas follows the same pattern as the rest of the country, so a single
-national DTI cap is reasonable.
+**Texas and the rest of the country trace essentially the same DTI
+curve.** The two lines overlap closely across the whole range — Texas is
+marginally higher at very low DTI and marginally lower in the low-20s,
+but the differences are within noise and both rise from ~17% to the
+low-30s in lockstep. There is **no evidence that the DTI–default
+relationship is structurally different in Texas**, which is what
+justifies a single national cap rather than a Texas-specific one.
 
 ------------------------------------------------------------------------
 
@@ -350,6 +457,16 @@ closed %>%
 | Other States | 350819 | 22.4%        | $14,486  | $78,440    |    18.7 | 13.0%             |
 | Texas        |  32383 | 22.8%        | $15,184  | $83,450    |    19.8 | 13.0%             |
 
+**On the headline numbers Texas is unremarkable.** Its **default rate
+(22.8%) is just 0.4 points above the rest of the country (22.4%)**, on a
+large sample of 32,383 Texan loans. The profile differences are small
+and mostly cancel out: Texan borrowers carry slightly **higher income
+($83.5k vs $78.4k)** *and* slightly **higher leverage (DTI 19.8 vs
+18.7)** and larger loans, while being charged an **identical average
+interest rate (13.0%)**. In other words, Texas looks like a slightly
+higher-income, slightly more-leveraged version of the national book, and
+the two effects roughly offset.
+
 ``` r
 tx <- closed %>% mutate(is_tx = addr_state == "TX")
 ptest <- prop.test(
@@ -360,6 +477,13 @@ ptest <- prop.test(
 
 Proportion test p-value: **0.151**. Texas is **not significantly
 different** from the national average.
+
+**Interpreting the test.** With a p-value of **0.151 (\> 0.05)** we
+cannot reject the null that Texas defaults at the same rate as
+everywhere else. Note this is a case where the **huge sample makes the
+test sensitive to even tiny gaps**, yet the 0.4-point difference is
+still *not* significant — strong evidence that the gap is genuinely just
+noise rather than a real Texas effect.
 
 ## How do all states compare?
 
@@ -384,7 +508,15 @@ closed %>%
     theme_q3()
 ```
 
-<img src="finalQ3_files/figure-markdown_github/state-plot-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/state-plot-1.png" alt="" style="display: block; margin: auto;" />
+
+**Texas sits squarely in the middle of the pack.** The state spread runs
+from roughly **~13% (DC, ME, OR at the safe end) to ~26–27% (AR, LA, MS,
+OK, AL at the risky end)** — a real ~13-point range, so states genuinely
+do differ overall (see Belief 2). But **Texas (red) lands mid-table at
+~22.8%**, close to the national average and nowhere near either extreme.
+The riskiest states cluster in the Deep South, while the safest are a
+mix of small-volume states; Texas is simply a big, average market.
 
 ------------------------------------------------------------------------
 
@@ -414,8 +546,14 @@ closed %>%
 | Everyone else       | 228821 | 20.3%        |
 | Homeowner & 10+ yrs |  68636 | 14.6%        |
 
-There is a gap, but it’s modest. Homeownership and long employment help
-a bit — they’re not a silver bullet though. **Partially supported.**
+**Directionally true, but the effect is moderate.** Among 36-month
+loans, the “homeowner **and** 10+ years employed” group defaults at
+**14.6%** versus **20.3%** for everyone else — a **5.7-point**
+improvement, or about **28% lower** in relative terms. That is a real,
+useful reduction, but the favoured group still defaults at nearly **1 in
+7**, so the combination is a helpful *positive signal*, not a guarantee
+of repayment. Hence **partially supported** — stability helps, but it
+doesn’t override grade, term or DTI risk.
 
 ## Belief 2: States differ significantly on short-term defaults
 
@@ -427,6 +565,15 @@ h2_test <- chisq.test(table(h2_data$addr_state, h2_data$is_default),
 
 Chi-squared p-value: **0.0004998** — this is **significant, so yes,
 states do differ. Supported.**
+
+**Interpreting the test.** The chi-squared test (with simulated
+p-values, appropriate given the many sparse state cells) returns **p ≈
+0.0005**, far below 0.05, so the differences in short-term default rates
+across states are **statistically real, not random** — consistent with
+the ~13-point spread seen in the state plot. **Supported.** One caveat
+to keep in mind: “states differ” does **not** mean the *state itself*
+causes default — much of the gap likely reflects different borrower
+mixes (income, grade, purpose) across states rather than geography.
 
 ## Belief 3: Credit grades predict defaults well for younger borrowers
 
@@ -457,10 +604,20 @@ h3 %>%
     theme_q3()
 ```
 
-<img src="finalQ3_files/figure-markdown_github/h3-1.png" alt="" style="display: block; margin: auto;" />
+<img src="FinalQ3-_files/figure-markdown_github/h3-1.png" alt="" style="display: block; margin: auto;" />
 
-Clear step-up from A to G — credit grades do a good job separating risk.
-**Supported.**
+**Grade clearly separates risk — with one honest caveat about the
+test.** The step-up from **A 6.9% to G 57.3%** is exactly what a
+well-functioning grading system should produce, so grade is a strong
+predictor. **However**, the FICO columns did not survive cleaning
+(`fico_mid` is all `NA`), so the code fell back to its `else` branch and
+the subtitle reads *“All borrowers (FICO not available)”*. That means
+this chart shows grade’s predictive power **across the whole closed
+book, not specifically the low-FICO / thin-file “younger” borrowers**
+the belief is about. The belief is therefore **supported for borrowers
+in general**, but with the data available we **cannot isolate the
+younger-borrower sub-group** — to test the belief as literally stated we
+would need the FICO fields restored upstream.
 
 ## Summary of beliefs
 
@@ -485,32 +642,50 @@ tibble(
 | States differ on short-term defaults | Supported |
 | Credit grades predict default for younger borrowers | Supported — clear pattern across grades |
 
+**In short:** one belief is fully borne out (states differ), one holds
+at the overall level but couldn’t be tested on the exact sub-group it
+claims (grades predict for younger borrowers — FICO missing), and one is
+real but smaller than the Institute assumes (homeowner + tenure).
+
 ------------------------------------------------------------------------
 
 # 7. Recommendations for the Director
 
 Based on the analysis, here are the main takeaways:
 
-**On DTI caps:** A DTI hard-cap between 25 and 30 makes sense. Above 30,
-defaults rise sharply. A single national cap works — no need for
-state-specific thresholds.
+**On DTI caps:** The DTI–default relationship is a smooth slope, not a
+cliff, so the cap is a risk-appetite decision. If the goal is to trim
+the steep part of the curve, a cap in the **DTI 20–25** range is
+reasonable (risk accelerates through the low-20s). If instead the goal
+is an absolute loss target, the numbers are stricter: holding defaults
+at/under ~18–20% requires a cap of only **DTI 12–16**, because the
+curve’s floor is already ~17%. Either way a **single national cap** is
+justified — Texas and the rest of the country follow the same DTI curve.
 
-**On who defaults:** The riskiest borrowers tend to have lower credit
-grades (D–G), take out small business loans, borrow for 60 months, and
-have high DTI or low income. These factors matter more than home
-ownership or employment length.
+**On who defaults:** The strongest signals are **credit grade** (6.9% at
+A → 57.3% at G) and **interest rate** (≈5% → ≈49%), followed by **loan
+term** (36mo 19.0% vs 60mo 34.5%), **purpose** (small business 33.3% is
+the clear outlier), and the **income/DTI gradients**. Home ownership and
+employment length matter, but noticeably less than grade, term and DTI.
 
-**On credit grades:** The grading system works well. But it’s even
-better when paired with DTI and FICO checks, especially for borderline
-grades like C and D.
+**On credit grades:** The grading system works well and is the best
+single primary filter. It is even stronger when paired with DTI and
+(once restored) FICO checks, especially for the borderline **C/D grades
+that straddle the 22.5% book average**.
 
-**On interest rates:** Borrowers paying very high interest rates are the
-most likely to default. It’s worth asking whether charging risky
-borrowers more might actually make them more likely to fail.
+**On interest rates:** High-rate borrowers default the most. Because the
+rate is set to compensate for risk yet may also worsen it, it is worth
+reviewing whether the very highest rate bands are pricing borrowers into
+failure rather than out of it.
 
-**On Texas:** Texas is broadly in line with national patterns — no
-special treatment needed.
+**On Texas:** Texas is statistically in line with the national book
+(22.8% vs 22.4%, p = 0.151) and mid-table among states — **no special
+treatment or separate policy needed.**
 
-**On the Institute’s beliefs:** Two out of three hold up. Homeownership
-and employment length help, but less than the Institute thinks. Credit
-grades and state-level differences are real.
+**On the Institute’s beliefs:** Two of three hold up. States genuinely
+differ; credit grades clearly separate risk (though the low-FICO
+sub-test couldn’t be run because FICO data was dropped in cleaning); and
+the homeowner-plus-tenure effect is real but smaller (a ~5.7-point edge)
+than the Institute believes. A useful follow-up would be to **restore
+the FICO fields upstream** so Belief 3 can be tested on the borrowers it
+actually concerns.
