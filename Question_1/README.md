@@ -9,19 +9,8 @@ question is as follows:
 <!-- -->
 
     ##           used (Mb) gc trigger (Mb) max used (Mb)
-    ## Ncells  562585 30.1    1255461 67.1   703848 37.6
-    ## Vcells 1062219  8.2    8388608 64.0  1932073 14.8
-
-    ## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
-    ## ✔ dplyr     1.2.1     ✔ readr     2.2.0
-    ## ✔ forcats   1.0.1     ✔ stringr   1.6.0
-    ## ✔ ggplot2   4.0.3     ✔ tibble    3.3.1
-    ## ✔ lubridate 1.9.5     ✔ tidyr     1.3.2
-    ## ✔ purrr     1.2.2     
-    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
-    ## ✖ dplyr::filter() masks stats::filter()
-    ## ✖ dplyr::lag()    masks stats::lag()
-    ## ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+    ## Ncells  562782 30.1    1256024 67.1   703848 37.6
+    ## Vcells 1063185  8.2    8388608 64.0  1932073 14.8
 
 # 1. Loading the data
 
@@ -72,38 +61,106 @@ head(coffee)
 Here i will analyse 7 key factors where i rank the coffees based of the
 variabke of interest.
 
-## Top origin
-
 ``` r
-top_origins <- function(df, n = 12, min_count = 10) {
-    df %>%
-        group_by(origin_1) %>%
-        summarise(
-            avg_rating = mean(Rating),
-            avg_cost   = mean(Cost_rands),
-            count      = n(),
-            .groups = "drop"
-        ) %>%
-        filter(count >= min_count) %>%
-        arrange(desc(avg_rating)) %>%
-        slice_head(n = n)
-}
-
-top_origins(coffee)
+# here i use the analyse functions for create variables that will be sueed for summary stats
+origins        <- top_origins(coffee)
+roast_stats    <- rating_by_roast(coffee)
+value_coffees  <- best_value(coffee)
+roasters       <- top_roasters(coffee)
+student_picks  <- student_top_picks(coffee)
+cost_stats     <- cost_summary(coffee)
+locations      <- roaster_locations(coffee)
 ```
 
-    ## # A tibble: 12 × 4
-    ##    origin_1               avg_rating avg_cost count
-    ##    <chr>                       <dbl>    <dbl> <int>
-    ##  1 Boquete Growing Region       94.7    407.     34
-    ##  2 Kiambu Growing Region        94.5     91.7    12
-    ##  3 Sidama Growing Region        94.4    128.     14
-    ##  4 Holualoa                     94.3    385.     41
-    ##  5 Caicedonia                   94.3    217.     11
-    ##  6 Bench-Maji Zone              94.1    254.     11
-    ##  7 Nyeri Growing Region         94.0    112.     58
-    ##  8 Kirinyaga District           94.0    120.     22
-    ##  9 Aceh Province                93.8     85.7    12
-    ## 10 Lintong Growing Region       93.7     78.6    19
-    ## 11 Agaro Gera                   93.7     92.8    10
-    ## 12 Sidamo Growing Region        93.6    518.     10
+# visuals
+
+``` r
+# ── Plot 1: Top Origins ──────────────────────────────────────────────────
+ origins %>%
+    mutate(origin_1 = fct_reorder(origin_1, avg_rating)) %>%
+    ggplot(aes(x = avg_rating, y = origin_1, fill = origin_1)) +
+    geom_col(show.legend = FALSE, width = 0.65) +
+    geom_text(aes(label = round(avg_rating, 1)),
+              hjust = -0.2, size = 3.5, colour = "#3B2314") +
+    scale_fill_manual(values = coffee_palette) +
+    labs(
+        title = "Top Coffee Origins by Average Rating",
+        x = "Average Rating", y = NULL
+    ) +
+    coord_cartesian(xlim = c(min(origins$avg_rating) - 0.5, NA)) +
+    theme_coffee()
+```
+
+![](README_files/figure-markdown_github/unnamed-chunk-5-1.png)
+
+``` r
+# ── Plot 2: Rating by Roast (boxplot) ────────────────────────────────────
+roast_order <- roast_stats %>% pull(roast)
+ 
+coffee %>%
+    mutate(roast = factor(roast, levels = roast_order)) %>%
+    ggplot(aes(x = roast, y = Rating, fill = roast)) +
+    geom_boxplot(alpha = 0.8, show.legend = FALSE, width = 0.55) +
+    scale_fill_manual(values = coffee_palette) +
+    labs(
+        title = "Rating Distribution by Roast Type",
+        x = NULL, y = "Rating"
+    ) +
+    theme_coffee()
+```
+
+![](README_files/figure-markdown_github/unnamed-chunk-6-1.png)
+
+``` r
+# ── Plot 3: Cost vs Rating (scatter, colour = keyword hits) ──────────────
+ coffee %>%
+    ggplot(aes(x = Cost_Per_100g, y = Rating, colour = kw_hits)) +
+    geom_point(alpha = 0.55, size = 2) +
+    scale_colour_gradient(low = "#F5DEB3", high = "#6F4E37",
+                          name = "Student\nKeyword Hits") +
+    labs(
+        title = "Cost vs Rating (colour = student keyword match strength)",
+        x = "Cost per 100g (USD)", y = "Rating"
+    ) +
+    theme_coffee()
+```
+
+![](README_files/figure-markdown_github/unnamed-chunk-7-1.png)
+
+``` r
+ roasters %>%
+    mutate(roaster = fct_reorder(roaster, avg_rating)) %>%
+    ggplot(aes(x = avg_rating, y = roaster, fill = roaster)) +
+    geom_col(show.legend = FALSE, width = 0.6) +
+    geom_text(aes(label = round(avg_rating, 1)),
+              hjust = -0.2, size = 3.5, colour = "#3B2314") +
+    scale_fill_manual(values = coffee_palette) +
+    labs(
+        title = "Top 10 Roasters (>= 5 coffees reviewed)",
+        x = "Average Rating", y = NULL
+    ) +
+    coord_cartesian(xlim = c(min(roasters$avg_rating) - 0.5, NA)) +
+    theme_coffee()
+```
+
+![](README_files/figure-markdown_github/unnamed-chunk-8-1.png)
+
+``` r
+med_cost <- median(coffee$Cost_Per_100g)
+ 
+ coffee %>%
+    ggplot(aes(x = Cost_Per_100g)) +
+    geom_histogram(bins = 40, fill = "#6F4E37", colour = "white", alpha = 0.85) +
+    geom_vline(xintercept = med_cost, linetype = "dashed",
+               colour = "#D4A574", linewidth = 1) +
+    annotate("text", x = med_cost + 3, y = Inf, vjust = 2,
+             label = paste0("Median: $", round(med_cost, 2)),
+             colour = "#3B2314", size = 4) +
+    labs(
+        title = "Cost Distribution of Reviewed Coffees",
+        x = "Cost per 100g (USD)", y = "Number of Coffees"
+    ) +
+    theme_coffee()
+```
+
+![](README_files/figure-markdown_github/unnamed-chunk-9-1.png)
