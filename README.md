@@ -1,9 +1,10 @@
 # Purpose
 
-This is the root folder of the Data Science 871 Part A practical
-assessment. Each Question will be answered under its own question folder
-above. Each question has been knitted into an .md file, with the only
-exception being Question 1 where in addition an .pptx was generated.
+This repo contains my submission for the Data Science 871 Part A
+practical assessment. Each question is structured in its own
+self-contained folder for readability and reproducibility. All questions
+have been knitted to `.md` files; Question 1 additionally includes a
+`.pptx` deliverable as required by the brief.
 
 - Question 1: Coffee Hub Analysis
 - Question 2: Baby Names Analysis
@@ -14,7 +15,7 @@ exception being Question 1 where in addition an .pptx was generated.
 
     ##           used (Mb) gc trigger (Mb) max used (Mb)
     ## Ncells  562489 30.1    1255187 67.1   703848 37.6
-    ## Vcells 1061635  8.1    8388608 64.0  1932071 14.8
+    ## Vcells 1061644  8.1    8388608 64.0  1932071 14.8
 
     ## 
     ## Attaching package: 'dplyr'
