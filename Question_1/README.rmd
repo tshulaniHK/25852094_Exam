@@ -5,21 +5,20 @@ output:
 ---
 
 # Purpose
- This is the root folder of the Data Science 871 Part A practical assessment. Each Question will be answered under its own question folder above.
 
-- Question 1: Coffee Hub Analysis
-- Question 2: Baby Names Analysis
-- Question 3: Coffee Hub Analysis
-- Question 4: Coffee Hub Analysis
+Purpose of this work folder.
 
-```{r, echo=FALSE}
+Ideally store a minimum working example data set in data folder.
+
+Add binary files in bin, and closed R functions in code. Human Readable settings files (e.g. csv) should be placed in settings/
+
+
+```{r}
 
 rm(list = ls()) # Clean your environment:
 gc() # garbage collection - It can be useful to call gc after a large object has been removed, as this may prompt R to return memory to the operating system.
 library(tidyverse)
-library(dplyr)
 list.files('code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
-
-
 ```
+
 
