@@ -1,7 +1,7 @@
-# code/persistence.R
-# ── Spearman rank correlation for naming persistence ─────────────────────────
 
-#' Get top-N names for a given year and gender, ranked by Total
+#  Spearman rank correlation for naming persistence
+
+#  Get top-N names for a given year and gender, ranked by Total
 get_top_names <- function(df, yr, gen, n = 25) {
     df %>%
         filter(Year == yr, Gender == gen) %>%
@@ -11,7 +11,7 @@ get_top_names <- function(df, yr, gen, n = 25) {
         select(Name, Rank)
 }
 
-#' Rank ALL names for a given year and gender
+#  Rank ALL names for a given year and gender
 rank_all_names <- function(df, yr, gen) {
     df %>%
         filter(Year == yr, Gender == gen) %>%
@@ -20,7 +20,7 @@ rank_all_names <- function(df, yr, gen) {
         select(Name, Rank)
 }
 
-#' Compute Spearman ρ between a base year's top-N and a target year's rankings
+#  Compute Spearman ρ between a base year s top-N and a target year s rankings
 compute_persistence <- function(df, base_yr, target_yr, gen, n = 25) {
     base_top   <- get_top_names(df, base_yr, gen, n)
     target_all <- rank_all_names(df, target_yr, gen)
@@ -34,8 +34,8 @@ compute_persistence <- function(df, base_yr, target_yr, gen, n = 25) {
     cor(joined$Rank_base, joined$Rank_target, method = "spearman")
 }
 
-#' Build full persistence grid: every year × lag × gender combination
-#' Returns a tibble with Year, Lag, Gender, Target_Year, Correlation
+#  Build full persistence grid: every year × lag × gender combination
+#  Returns a tibble with Year, Lag, Gender, Target_Year, Correlation
 build_persistence_grid <- function(df, lags = 1:3) {
     all_years <- sort(unique(df$Year))
     max_year  <- max(all_years)

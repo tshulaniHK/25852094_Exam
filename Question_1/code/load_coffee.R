@@ -31,5 +31,4 @@ load_coffee <- function(path = "data/Coffee/Coffee.csv") {
     return(df)
 }
 
-# CALL IT PROPERLY
 

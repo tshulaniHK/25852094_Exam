@@ -1,6 +1,6 @@
 # Utility functions for Q3: Loans and Credit
 
-# ---- Data loader that handles encoding issues ----
+# ---- Data loader that handles encoding issues
 load_loan_data <- function(path) {
     df <- tryCatch(
         read_rds(path),
@@ -12,12 +12,12 @@ load_loan_data <- function(path) {
     df
 }
 
-# ---- Clean interest rate (strip %) ----
+# ---- Clean interest rate
 clean_int_rate <- function(x) {
     x %>% as.character() %>% str_remove_all("%") %>% str_trim() %>% as.numeric()
 }
 
-# ---- Clean employment length to numeric ----
+# ---- Clean employment length to numeric
 clean_emp_length <- function(x) {
     x %>%
         as.character() %>%
@@ -27,12 +27,12 @@ clean_emp_length <- function(x) {
         as.numeric()
 }
 
-# ---- Clean term to numeric months ----
+# ---- Clean term to numeric months
 clean_term <- function(x) {
     x %>% as.character() %>% str_extract("\\d+") %>% as.numeric()
 }
 
-# ---- Drop columns that are mostly empty ----
+# ---- Drop columns that are mostly empty
 drop_mostly_empty <- function(df, cutoff = 0.80) {
     keep <- df %>%
         summarise(across(everything(), ~mean(is.na(.)))) %>%
@@ -43,7 +43,7 @@ drop_mostly_empty <- function(df, cutoff = 0.80) {
     df %>% select(all_of(keep))
 }
 
-# ---- Loan outcome classifier (TIP from brief) ----
+# ---- Loan outcome classifier (TIP from brief)
 classify_loan <- function(status) {
     case_when(
         str_detect(status, regex("fully paid", ignore_case = TRUE)) ~ "Fully Paid",
@@ -53,7 +53,7 @@ classify_loan <- function(status) {
     )
 }
 
-# ---- Quick default rate by group ----
+# ---- Quick default rate by group
 default_rate_by <- function(df, group_var) {
     gv <- sym(group_var)
     df %>%

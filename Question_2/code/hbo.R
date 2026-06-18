@@ -1,8 +1,8 @@
-# code/hbo.R
-# ── HBO credits: character & actor name extraction ───────────────────────────
 
-#' Extract first names from HBO character and actor names
-#' Sanitises UTF-8 up front to avoid encoding errors
+#  HBO credits: character & actor name extraction
+
+#  Extract first names from HBO character and actor names
+#  Sanitises UTF-8 up front to avoid encoding errors
 extract_hbo_names <- function(credits_df, titles_df) {
 
     enriched <- credits_df %>%
@@ -37,7 +37,7 @@ extract_hbo_names <- function(credits_df, titles_df) {
     bind_rows(char_names, actor_names)
 }
 
-#' Summarise HBO names by frequency and average TMDB score
+#  Summarise HBO names by frequency and average TMDB score
 summarise_hbo_names <- function(hbo_names_df) {
     hbo_names_df %>%
         group_by(first_name, source) %>%
@@ -50,7 +50,7 @@ summarise_hbo_names <- function(hbo_names_df) {
         arrange(desc(n_appearances))
 }
 
-#' Build baby name trend overlaid with HBO appearance data for spotlight names
+#  Build baby name trend overlaid with HBO appearance data for spotlight names
 build_hbo_baby_overlay <- function(spotlight_names, national_df, hbo_names_df) {
     map_dfr(spotlight_names, function(nm) {
         baby_trend <- national_df %>%

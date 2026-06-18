@@ -5,21 +5,20 @@ output:
 ---
 
 # Purpose
- This is the root folder of the Data Science 871 Part A practical assessment. Each Question will be answered under its own question folder above.
+
+This is the root folder of the Data Science 871 Part A practical assessment. Each Question will be answered under its own question folder above. Each question has been knitted into an .md file, with the only exception being Question 1 where in addition an .pptx was generated.
 
 - Question 1: Coffee Hub Analysis
 - Question 2: Baby Names Analysis
-- Question 3: Coffee Hub Analysis
-- Question 4: Coffee Hub Analysis
+- Question 3: Loan and Credit Analysis
+- Question 4: Netflix Analysis
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, Warning= FALSE, Message = FALSE}
 
 rm(list = ls()) # Clean your environment:
 gc() # garbage collection - It can be useful to call gc after a large object has been removed, as this may prompt R to return memory to the operating system.
-library(tidyverse)
 library(dplyr)
+library(tidyverse)
 list.files('code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
-
-
 ```
 

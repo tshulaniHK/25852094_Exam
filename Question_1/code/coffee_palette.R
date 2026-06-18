@@ -1,4 +1,4 @@
-# coffee palete theme:
+# coffee palete theme: i tried to replicate a coffee based theme lol :)
 
 
 coffee_palette <- c(

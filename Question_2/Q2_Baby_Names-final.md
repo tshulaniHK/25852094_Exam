@@ -8,7 +8,6 @@ library(scales)
 library(glue)
 library(knitr)
 
-# ── Source all helper functions from code/ ───────────────────────────────────
 list.files('code/', full.names = TRUE, recursive = TRUE) %>%
     .[grepl('.R$', .)] %>%
     as.list() %>%
@@ -65,10 +64,8 @@ national %>%
 
 - The dataset covers **30,274** unique names from **1910** to **2014**.
 - Both genders peak in the late 1950s–1960s (baby boom), then decline.
-- Girls’ names are more diverse — the same total births spread across
+- Girls’ names are more diverse as the same total births spread across
   more unique names.
-
-------------------------------------------------------------------------
 
 # Naming Persistence: Spearman Rank Correlation
 

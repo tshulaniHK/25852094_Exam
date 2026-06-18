@@ -1,5 +1,5 @@
-# code/billboard.R
-# ── Billboard Top 100 artist name extraction & matching ──────────────────────
+
+# Billboard Top 100 artist name extraction & matching
 
 #' Parse Billboard data: split compound artist fields, extract first names
 parse_billboard_artists <- function(df) {

@@ -1,5 +1,5 @@
 
-# Pure function: count how many distinct keywords appear in a string using the keywords from the survey
+#  count how many distinct keywords appear in a string using the keywords from the survey
 count_keyword_hits <- function(text, keywords) {
     text_lower <- str_to_lower(text)
     map_int(keywords, ~ as.integer(str_detect(text_lower, fixed(.x)))) %>% sum()

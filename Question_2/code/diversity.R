@@ -1,8 +1,8 @@
-# code/diversity.R
-# ── Naming diversity & decade-level summaries ────────────────────────────────
 
-#' Compute the number of unique names needed to cover 50% of births
-#' for a given year and gender
+#  Naming diversity & decade-level summaries
+
+# Compute the number of unique names needed to cover 50% of births
+# for a given year and gender
 compute_diversity_50 <- function(df, yr, gen) {
     ranked <- df %>%
         filter(Year == yr, Gender == gen) %>%
@@ -11,7 +11,7 @@ compute_diversity_50 <- function(df, yr, gen) {
     sum(ranked$CumPct <= 0.50) + 1L
 }
 
-#' Build diversity data frame across all year × gender combos
+# Build diversity data frame across all year × gender combos
 build_diversity_df <- function(national_df) {
     crossing(
         Year   = sort(unique(national_df$Year)),
@@ -23,7 +23,7 @@ build_diversity_df <- function(national_df) {
         )
 }
 
-#' Get the top-N names per decade for a given gender
+# Get the top-N names per decade for a given gender
 top_names_by_decade <- function(df, gen, n = 10) {
     df %>%
         add_decade() %>%
@@ -36,7 +36,7 @@ top_names_by_decade <- function(df, gen, n = 10) {
         ungroup()
 }
 
-#' Get all-time top-N names for a gender (returns character vector)
+# Get all-time top-N names for a gender (returns character vector)
 get_alltime_top <- function(df, gen, n = 10) {
     df %>%
         filter(Gender == gen) %>%
