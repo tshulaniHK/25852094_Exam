@@ -43,7 +43,7 @@ tokenise_text <- function(text_vector) {
         str_remove_all("[^a-z\\s]") %>%
         str_split("\\s+") %>%
         unlist() %>%
-        discard(~.x == "" | nchar(.x) < 3)
+        purrr::discard(~ .x == "" | nchar(.x) < 3)
 }
 
 # list of common english stopwords to filter out
@@ -71,7 +71,7 @@ get_word_freq <- function(text_vector, n = 30) {
 
     text_vector %>%
         tokenise_text() %>%
-        discard(~.x %in% stops) %>%
+        purrr::discard(~ .x %in% stops) %>%
         tibble(word = .) %>%
         count(word, sort = TRUE) %>%
         slice_head(n = n)

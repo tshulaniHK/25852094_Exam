@@ -6,29 +6,1449 @@ output:
 
 # Purpose
 
-This repo contains my submission for the Data Science 871 Part A practical assessment. Each question is structured in its own self-contained folder for readability and reproducibility. All questions have been knitted to `.md` files; Question 1 additionally includes a `.pptx` deliverable as required by the brief. Below I outline how I approached each question.
+This repo contains my submission for the Data Science 871 Part A practical assessment. Each question is structured in its own self-contained folder for readability and reproducibility. All questions have been knitted to `.md` files; Question 1 additionally includes a `.pptx` deliverable as required by the brief. While all the solutions to the assignement below, for ease of reading you can access each question indivuall in their folders and the opening the `.md files` .
 
-- **Question 1: Coffee Hub Analysis**
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center", fig.width = 9, fig.height = 5.5)
 
-I started by writing a `load_coffee()` function to fix the Excel/UTF-8 encoding issues (`Latin-ASCII`), drop any coffees missing a roast or reviewer descriptions, and engineer two helper variables, a Rand cost and a single merged review string. I then scored every coffee against the 29 top Stellenbosch student keywords to build `kw_hits`/`student_match`, and wrote seven analysis functions covering origins, roast, value, roasters, student picks, cost and location. I presented the findings as five themed plots using my own coffee palette/ or atleast tried to. My main conclusion was that roast and origin drive quality while price barely tracks rating. See `Question_1` folder for knitted file.
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, lubridate, janitor, scales, broom,
+               knitr, patchwork, glue)
 
-- **Question 2: Baby Names Analysis**
+```
 
-This was my most statistically involved question. I loaded four datasets (baby names plus Billboard and HBO data), aggregated to the national level, and measured naming persistence using **Spearman rank correlation** of each year's top-25 names against 1-, 2- and 3-year lags, comparing pre- and post-1990. I added year-on-year surge detection, cultural case studies cross-referencing Billboard artists and HBO characters against name spikes (Whitney, Elvis, Arya, Barack), a diversity metric (names needed to cover 50% of births), and decade bubble charts. I concluded that modern names churn faster and are increasingly driven by music, TV and political culture. See `Question_2` folder for knitted file.
-
-- **Question 3: Loan and Credit Analysis**
-
-I cleaned a one-million-row loan dataset (dropping columns more than 80% empty, fixing rate/term/employment formatting), and defined a clear default outcome on closed loans only, giving a 22.5% baseline. I used `map` to compute default rates across seven borrower characteristics, then addressed the Director's DTI hard-cap question with a tolerance table, ran formal hypothesis tests (`prop.test` for Texas, `chisq.test` for states), and tested the Institute's three beliefs. I found that credit grade and interest rate dominate risk, Texas is statistically unremarkable, and a single national DTI cap is justified and I closed with concrete recommendations. See `Question_3` folder for knitted file.
-
-- **Question 4: Netflix Analysis**
-
-I combined three datasets (Titles, Movie_Info, Credits) through helper loaders, then ran a broad catalogue exploration: movies-vs-shows mix, release trends, top producing countries, genre preferences by country, IMDb score distributions, age certifications, runtime analysis, and a functional text-analysis pipeline of movie descriptions using `map`, plus the most prolific actors and directors. I framed my takeaways for an investor launching a competing platform and Netflix is movie-heavy and largely "average" in quality, so a rival could differentiate through original series, underserved geographies and a quality-over-quantity strategy. See `Question_4` folder for knitted file.
-
-```{r, include=FALSE , echo=FALSE, Warning= FALSE, Message = FALSE}
+```{r, Warning= FALSE, Message = FALSE}
 
 rm(list = ls()) # Clean your environment:
 gc() # garbage collection - It can be useful to call gc after a large object has been removed, as this may prompt R to return memory to the operating system.
 library(dplyr)
 library(tidyverse)
-list.files('code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
+library(scales)
+library(knitr)
+library(kableExtra)
+library(tidytext)
+
+
+list.files('Question_1/code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
+list.files('Question_2/code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
+list.files('Question_3/code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
+list.files('Question_4/code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
 ```
+
+# Question 1: Coffee Hub Analysis
+
+I started by writing a `load_coffee()` function to fix the Excel/UTF-8 encoding issues (`Latin-ASCII`), drop any coffees missing a roast or reviewer descriptions, and engineer two helper variables, a Rand cost and a single merged review string. I then scored every coffee against the 29 top Stellenbosch student keywords to build `kw_hits`/`student_match`, and wrote seven analysis functions covering origins, roast, value, roasters, student picks, cost and location. I presented the findings as five themed plots using my own coffee palette/ or atleast tried to. My main conclusion was that roast and origin drive quality while price barely tracks rating.
+
+This is the solution for the **Coffee Hub** analysis. The brief is to take the raw coffee-review data, clean it, engineer a few useful variables, and then profile the collection of reviewed coffees across seven angles (origin, roast, value, roaster, student taste-match, cost and location). The approach is:
+
+- Build a loader function that reads the CSV, fixes the Excel/UTF-8 encoding issues, drops incomplete records, and engineers the helper variables (a Rand cost and a single merged review string).
+- Score every coffee against the Stellenbosch student word-cloud preferences.
+- Summarise the seven key factors and visualise the most important of them.
+
+## 1.1 Loading the data
+
+```{r}
+coffee <- load_coffee("Question_1/data/Coffee/Coffee.csv")
+# the load function firstly removes the encoding issues and then once its done i filter and remove any coffee item that has missing values or an NA in the observables.
+
+# I also create a Cost variable in Rands using the exchange rate as of June 17th 2026 which was R16.17.
+# lastly, i also merger the 3 reviewers feedback into 1 long review.
+
+```
+
+The raw file is imported from Excel, so accented origin/roaster names (e.g. *Café*, *Bogotá*) arrive as broken UTF-8. `load_coffee()` translates everything to plain ASCII (`Latin-ASCII`) so the text is safe to match and print, then removes any coffee missing a roast type or any of the three reviewer descriptions, these are the fields every downstream summary depends on, so keeping incomplete rows would bias the averages. Two engineered columns are added: `Cost_rands` (Cost_Per_100g × 16.17, the 17 June 2026 rate) to express price in local terms, and `desc_all`, which concatenates the three reviewer notes into one searchable string for keyword scoring.
+
+## 1.2 KEYWORD MATCHING — Stellenbosch student word-cloud preferences
+
+```{r}
+# These are the top words from the Stellenbosch survey that were given in the word bubble within the key words.
+# The objective is to use the how many of the reviews hit or use the same words as in the ones that were top from the survey.
+
+
+student_keywords <- c(
+    "sweet", "chocolate", "aroma", "mouthfeel", "finish", "structure",
+    "toned", "notes", "bright", "fruit", "rich", "floral", "balanced",
+    "crisp", "spice", "dark", "roasted", "cocoa", "cup", "syrupy",
+    "smooth", "honey", "berry", "citrus", "caramel", "vanilla", "nutty",
+    "almond", "cherry"
+)
+
+
+coffee <- flag_keyword_matches(coffee, student_keywords) # this creates the variable kw_hits which how many of the keywords from the survey from stellenbosch were included in the reviews.
+
+head(coffee)
+```
+
+Each coffee's merged review is scanned for the 29 flavour words that Stellenbosch students ranked highest in the survey word-cloud. `kw_hits` counts how many distinct preference words appear, and `student_match` flags any coffee at or above the median hit count - i.e. the coffees whose tasting notes "speak the students' language". A higher `kw_hits` does not mean a better coffee; it means the review vocabulary overlaps more with what the target market actually says it wants, which is what makes a coffee a good candidate to stock for that audience.
+
+## 1.3 Analysis
+
+Here I analyse 7 key factors, ranking the coffees by the variable of interest in each case. The summaries below feed directly into the visuals that follow. All functions can be found in the Analysis_functions scripts.
+
+```{r}
+# here i use the analyse functions for create variables that will be sueed for summary stats
+origins        <- top_origins(coffee)
+roast_stats    <- rating_by_roast(coffee)
+value_coffees  <- best_value(coffee)
+roasters       <- top_roasters(coffee)
+student_picks  <- student_top_picks(coffee)
+cost_stats     <- cost_summary(coffee)
+locations      <- roaster_locations(coffee)
+```
+
+Each function isolates one decision-relevant question: which **origins** and **roasters** consistently score well (with a minimum-count filter so a single lucky review can't top the table), which roast levels the reviewers prefer, where the **best value** lies (rating earned per dollar), which coffees best fit **student** taste, and how **cost** is distributed overall and by roast.
+
+## 1.4 Visuals
+
+```{r}
+#  Plot 1: Top Origins 
+ origins %>%
+    mutate(origin_1 = fct_reorder(origin_1, avg_rating)) %>%
+    ggplot(aes(x = avg_rating, y = origin_1, fill = origin_1)) +
+    geom_col(show.legend = FALSE, width = 0.65) +
+    geom_text(aes(label = round(avg_rating, 1)),
+              hjust = -0.2, size = 3.5, colour = "#3B2314") +
+    scale_fill_manual(values = coffee_palette) +
+    labs(
+        title = "Top Coffee Origins by Average Rating",
+        x = "Average Rating", y = NULL
+    ) +
+    coord_cartesian(xlim = c(min(origins$avg_rating) - 0.5, NA)) +
+    theme_coffee()
+```
+
+**Plot 1-Top origins.** The best-rated growing regions are dominated by East Africa and a handful of premium single-origins: Panama's **Boquete** leads (\~94.6), followed by Kenya's **Kiambu** (94.5) and Ethiopia's **Sidama** (94.4), with Kenyan (Nyeri, Kirinyaga) and Ethiopian (Bench-Maji, Agaro Gera, Sidamo) regions filling out most of the table. The key takeaway is that **all twelve top origins sit in a very narrow 93.6–94.6 band**, barely a single rating point apart. Origin clearly signals quality (these are the classic high-altitude specialty regions), but among the leaders the differences are small, so origin alone is a weak way to separate the top coffees from one another.
+
+```{r}
+
+#  Plot 2: Rating by Roast (boxplot) 
+roast_order <- roast_stats %>% pull(roast)
+
+coffee %>%
+    mutate(roast = factor(roast, levels = roast_order)) %>%
+    ggplot(aes(x = roast, y = Rating, fill = roast)) +
+    geom_boxplot(alpha = 0.8, show.legend = FALSE, width = 0.55) +
+    scale_fill_manual(values = coffee_palette) +
+    labs(
+        title = "Rating Distribution by Roast Type",
+        x = NULL, y = "Rating"
+    ) +
+    theme_coffee()
+
+```
+
+**Plot 2-Rating by roast.** There is a clear, almost monotonic pattern: **lighter roasts score higher**. Light and Medium-Light have the highest medians (\~93) and tight boxes, Medium and Medium-Dark sit around 92, and **Dark roast is the clear laggard** , its median drops to \~87.5 *and* its spread is much wider, meaning dark roasts are both lower-rated and less consistent. This fits specialty convention: lighter roasts preserve the origin character the reviewers reward, whereas dark roasting flattens those distinctions. Practically, the Coffee Hub should lean towards light/medium-light roasts for the highest and most reliable scores.
+
+```{r}
+
+#  Plot 3: Cost vs Rating (scatter, colour = keyword hits)
+ coffee %>%
+    ggplot(aes(x = Cost_Per_100g, y = Rating, colour = kw_hits)) +
+    geom_point(alpha = 0.55, size = 2) +
+    scale_colour_gradient(low = "#F5DEB3", high = "#6F4E37",
+                          name = "Student\nKeyword Hits") +
+    labs(
+        title = "Cost vs Rating (colour = student keyword match strength)",
+        x = "Cost per 100g (USD)", y = "Rating"
+    ) +
+    theme_coffee()
+```
+
+**Plot 3 - Cost vs rating.** Price is a **poor predictor of quality**. The cloud of points is concentrated below \~\$20/100g and spans almost the full rating range (88–97) at those low prices, so plenty of cheap coffees score as well as the expensive ones. There is at best a faint upward tilt, with strong diminishing returns, the handful of \$50–\$130 coffees are not meaningfully better-rated than the best budget options. Colour (student keyword hits) is spread across the whole price axis, confirming that coffees matching student taste are **not** clustered at high prices. The actionable point: you can satisfy both quality and student-preference cheaply, which is exactly what the value analysis exploits.
+
+```{r}
+
+ roasters %>%
+    mutate(roaster = fct_reorder(roaster, avg_rating)) %>%
+    ggplot(aes(x = avg_rating, y = roaster, fill = roaster)) +
+    geom_col(show.legend = FALSE, width = 0.6) +
+    geom_text(aes(label = round(avg_rating, 1)),
+              hjust = -0.2, size = 3.5, colour = "#3B2314") +
+    scale_fill_manual(values = coffee_palette) +
+    labs(
+        title = "Top 10 Roasters (>= 5 coffees reviewed)",
+        x = "Average Rating", y = NULL
+    ) +
+    coord_cartesian(xlim = c(min(roasters$avg_rating) - 0.5, NA)) +
+    theme_coffee()
+```
+
+**Plot 4 - Top roasters.** Restricting to roasters with at least 5 reviewed coffees (so the average is trustworthy), **Hula Daddy Kona Coffee** stands out at \~95.1 - visibly ahead of the field and the only roaster clearing 95. Behind it, **Simon Hsieh Aroma Roast** and **Taster's Coffee** (both \~94.6) and **PT's Coffee Roasting Co.** (94.5) lead a tightly packed chase group between 94.0 and 94.3. As with origins, the leaders are separated by only about one rating point, so roaster reputation is best read as "consistently excellent" rather than a sharp ranking , Hula Daddy is the one genuine outlier at the top.
+
+```{r}
+
+med_cost <- median(coffee$Cost_Per_100g)
+
+ coffee %>%
+    ggplot(aes(x = Cost_Per_100g)) +
+    geom_histogram(bins = 40, fill = "#6F4E37", colour = "white", alpha = 0.85) +
+    geom_vline(xintercept = med_cost, linetype = "dashed",
+               colour = "#D4A574", linewidth = 1) +
+    annotate("text", x = med_cost + 3, y = Inf, vjust = 2,
+             label = paste0("Median: $", round(med_cost, 2)),
+             colour = "#3B2314", size = 4) +
+    labs(
+        title = "Cost Distribution of Reviewed Coffees",
+        x = "Cost per 100g (USD)", y = "Number of Coffees"
+    ) +
+    theme_coffee()
+
+
+```
+
+**Plot 5 - Cost distribution.** The price distribution is **heavily right-skewed**. The vast majority of coffees cluster around the **median of \$5.86 per 100g**, with a steep drop-off after \~\$15 and a long thin tail of premium coffees stretching past \$100. The mean is therefore pulled well above the median by those few expensive outliers, which is why the median (robust to the tail) is the fairer "typical price" to quote. Combined with Plot 3, the story is consistent: the market is overwhelmingly affordable, and the rare luxury coffees command their price on scarcity/marketing rather than on a rating premium.
+
+## 1.4 Overall conclusion
+
+Pulling the seven factors together: **quality in this collection is broad and shallow at the top** , the best origins (93.6–94.6) and best roasters (94.0–95.1) are bunched within roughly one rating point, so no single origin or brand is decisively "the best". The variables that *do* move ratings are **roast level** (lighter is better; dark roast underperforms and is erratic) and origin *character* (East African and select premium single-origins lead). Crucially, **price barely tracks quality**: most coffees cost around \$5.86/100g and the expensive tail buys little extra rating. For a buyer targeting Stellenbosch students, the optimal strategy is therefore a **light-to-medium, East-African or top-roaster coffee that scores well on student keyword hits — at a low price**, since the data shows all of those qualities are readily available together rather than forcing a trade-off.
+
+# Question 2: Baby Names Analysis
+
+This was my most statistically involved question. I loaded four datasets (baby names plus Billboard and HBO data), aggregated to the national level, and measured naming persistence using **Spearman rank correlation** of each year's top-25 names against 1-, 2- and 3-year lags, comparing pre- and post-1990. I added year-on-year surge detection, cultural case studies cross-referencing Billboard artists and HBO characters against name spikes (Whitney, Elvis, Arya, Barack), a diversity metric (names needed to cover 50% of births), and decade bubble charts. I concluded that modern names churn faster and are increasingly driven by music, TV and political culture. See `Question_2` folder for knitted file.
+
+# 2.1 Load Data
+
+```{r load-data for question 2}
+rds_paths <- c(
+    Baby_Names        = "Question_2/data/US_Baby_names/Baby_Names_By_US_State.rds",
+    Top_100_Billboard = "Question_2/data/US_Baby_names/charts.rds",
+    HBO_titles        = "Question_2/data/US_Baby_names/HBO_titles.rds",
+    HBO_credits       = "Question_2/data/US_Baby_names/HBO_credits.rds"
+)
+
+datasets <- map(rds_paths, load_rds)
+
+Baby_Names        <- datasets$Baby_Names
+Top_100_Billboard <- datasets$Top_100_Billboard
+HBO_titles        <- datasets$HBO_titles
+HBO_credits       <- datasets$HBO_credits
+
+# National aggregation
+national <- aggregate_national(Baby_Names)
+```
+
+# 2.2 Exploratory Overview
+
+```{r overview-stats}
+year_range <- range(national$Year)
+n_unique   <- n_distinct(national$Name)
+```
+
+```{r overview-plot, fig.height=5}
+national %>%
+    group_by(Year, Gender) %>%
+    summarise(Births = sum(Total), .groups = "drop") %>%
+    ggplot(aes(x = Year, y = Births, colour = Gender)) +
+    geom_line(linewidth = 0.9) +
+    scale_y_continuous(labels = comma) +
+    scale_colour_manual(values = c("F" = "#E76F51", "M" = "#2A9D8F"),
+                        labels = c("Girls", "Boys")) +
+    labs(title = "Total Recorded Births by Year and Gender",
+         subtitle = glue("{year_range[1]}–{year_range[2]} across all US states"),
+         x = NULL, y = "Total Births") +
+    theme_minimal(base_size = 13) +
+    theme(legend.position = "top")
+```
+
+**Key observations:**
+
+- The dataset covers **`r comma(n_unique)`** unique names from **`r year_range[1]`** to **`r year_range[2]`**.
+- Both genders peak in the late 1950s–1960s (baby boom), then decline.
+- Girls' names are more diverse as the same total births spread across more unique names.
+
+# 2.3 Naming Persistence: Spearman Rank Correlation
+
+I compute **Spearman ρ** between each year's top-25 names and the rankings 1, 2 and 3 years later.
+
+> ρ ≈ 1 → same names stayed popular in the same order; ρ ≈ 0 → rankings completely shuffled.
+
+## 2.3.1 Time-Series Plot
+
+```{r persistence-compute}
+persistence_df <- build_persistence_grid(national, lags = 1:3)
+```
+
+```{r persistence-plot, fig.height=7}
+persistence_df %>%
+    mutate(
+        Gender_label = if_else(Gender == "F", "Girls", "Boys"),
+        Lag_label    = glue("{Lag}-Year Lag")
+    ) %>%
+    ggplot(aes(x = Year, y = Correlation, colour = Lag_label)) +
+    geom_line(alpha = 0.4, linewidth = 0.5) +
+    geom_smooth(se = FALSE, method = "loess", span = 0.25, linewidth = 1) +
+    facet_wrap(~ Gender_label, ncol = 1) +
+    geom_vline(xintercept = 1990, linetype = "dashed", colour = "grey40") +
+    annotate("text", x = 1991, y = 0.55, label = "1990", hjust = 0,
+             size = 3.2, colour = "grey40") +
+    scale_colour_manual(values = c("#264653", "#E9C46A", "#E76F51")) +
+    labs(title = "Do Popular Baby Names Persist? Spearman Rank Correlation Over Time",
+         subtitle = "Top-25 names correlated with rankings 1–3 years later",
+         x = NULL, y = "Spearman ρ", colour = "Lag") +
+    theme_minimal(base_size = 13) +
+    theme(legend.position = "top")
+```
+
+## 2.3.2 Pre- vs Post-1990
+
+```{r persistence-table}
+persistence_df %>%
+    mutate(Era = if_else(Year < 1990, "Pre-1990", "1990 onwards")) %>%
+    group_by(Era, Gender, Lag) %>%
+    summarise(Mean_rho   = round(mean(Correlation, na.rm = TRUE), 3),
+              Median_rho = round(median(Correlation, na.rm = TRUE), 3),
+              .groups = "drop") %>%
+    mutate(Gender = if_else(Gender == "F", "Girls", "Boys")) %>%
+    arrange(Gender, Lag, Era) %>%
+    kable(caption = "Mean Spearman ρ — Pre-1990 vs 1990 Onwards")
+```
+
+**Key findings:**
+
+- **Confirmed:** Post-1990 naming trends show **lower persistence** — popular names churn faster for both genders.
+- The decline is most visible at longer lags: the 3-year lag ρ dropped from \~0.93 (boys) and \~0.85 (girls) pre-1990 to \~0.84 and \~0.82 post-1990.
+- Boys' persistence dropped **more sharply** than girls', narrowing the historical gender gap — both genders are now converging toward faster naming churn.
+- This supports the agency's hypothesis: since the 1990s, popular name trends have been slower to persist than in earlier decades.
+
+# 2.4 Year-on-Year Surges
+
+## 2.4.1 Top Surges Table
+
+```{r surges-compute}
+yoy <- compute_yoy_change(national, min_prev = 50)
+
+top_surges <- yoy %>% arrange(desc(Pct)) %>% slice_head(n = 30)
+```
+
+```{r surges-table}
+top_surges %>%
+    select(Name, Gender, Year, Prev, Total, Change, Pct) %>%
+    mutate(Gender = if_else(Gender == "F", "Girl", "Boy"),
+           Pct = paste0("+", round(Pct, 0), "%")) %>%
+    slice_head(n = 15) %>%
+    kable(col.names = c("Name", "Gender", "Year", "Prev Year", "Surge Year", "Change", "Pct"),
+          caption = "Top 15 Biggest Year-on-Year Name Surges")
+```
+
+**Notable entries:**
+
+- **Nevaeh** (+2,125% in 2001) is "heaven" spelled backwards — a name that was essentially invented by musician Sonny Sandoval when he appeared on MTV and mentioned naming his daughter Nevaeh. It went from 53 births to over 1,000 in a single year.
+- **Woodrow** (+2,127% in 1912) coincides precisely with Woodrow Wilson's presidential campaign, confirming that political naming influence is not a modern phenomenon.
+- **Tammy** (+2,039% in 1957) surged alongside the hit film *Tammy and the Bachelor* starring Debbie Reynolds, whose theme song topped the Billboard charts.
+
+## 2.4.2 Cultural Spike Case Studies
+
+```{r cultural-spikes, fig.height=6}
+cultural_trends <- build_cultural_trends(national)
+
+cultural_trends %>%
+    ggplot(aes(x = Year, y = Total)) +
+    geom_line(colour = "#2A9D8F", linewidth = 0.8) +
+    geom_vline(aes(xintercept = Event_Year), linetype = "dashed",
+               colour = "#E76F51", linewidth = 0.6) +
+    facet_wrap(~ glue("{Name} ({Event})"), scales = "free_y", ncol = 2) +
+    labs(title = "Cultural Events Drive Baby Name Surges",
+         subtitle = "Dashed red line = cultural event year",
+         x = NULL, y = "Births / Year") +
+    theme_minimal(base_size = 11) +
+    theme(strip.text = element_text(face = "bold", size = 9))
+```
+
+**Key findings:**
+
+- **Katina** spikes in 1974 (TV character on *Where the Heart Is*).
+- **Whitney** surged through the mid-1980s with Whitney Houston's career.
+- **Ariel** jumped after *The Little Mermaid* (1989); **Miley** didn't exist before *Hannah Montana* (2006).
+- **Daenerys** / **Khaleesi** are entirely new names created by *Game of Thrones*.
+
+# 2.5 Billboard Music Influence
+
+## 2.5.1 Artist–Baby Overlay
+
+```{r billboard-process}
+billboard_names   <- parse_billboard_artists(Top_100_Billboard)
+billboard_summary <- summarise_billboard(billboard_names)
+```
+
+```{r billboard-overlay, fig.height=7}
+music_names   <- c("Whitney", "Adele", "Rihanna", "Beyonce", "Elvis", "Madonna")
+music_overlay <- build_music_overlay(music_names, national, billboard_summary)
+
+music_overlay %>%
+    ggplot(aes(x = Year, y = Value, colour = Series)) +
+    geom_line(linewidth = 0.8) +
+    facet_wrap(~ Name, scales = "free_y", ncol = 2) +
+    scale_colour_manual(values = c("Baby Name Count" = "#2A9D8F",
+                                   "Billboard Weeks"  = "#E76F51")) +
+    labs(title = "Does Billboard Fame Drive Baby Names?",
+         subtitle = "Baby name popularity vs weeks on the Billboard Top 100",
+         x = NULL, y = "Count / Weeks", colour = NULL) +
+    theme_minimal(base_size = 11) +
+    theme(legend.position = "top", strip.text = element_text(face = "bold"))
+```
+
+## 2.5.2 Systematic Match Table
+
+```{r billboard-match}
+top_billboard <- billboard_summary %>%
+    group_by(Name) %>%
+    summarise(Total_Weeks = sum(weeks_charting),
+              Peak_Year   = Year[which.max(weeks_charting)],
+              .groups = "drop") %>%
+    filter(Total_Weeks >= 100) %>%
+    arrange(desc(Total_Weeks))
+
+billboard_baby_match <- top_billboard %>%
+    inner_join(yoy %>% filter(Pct > 20), by = "Name",
+               suffix = c("_chart", "_baby"), relationship = "many-to-many") %>%
+    filter(abs(Peak_Year - Year) <= 3) %>%
+    arrange(desc(Pct)) %>%
+    distinct(Name, .keep_all = TRUE)
+
+billboard_baby_match %>%
+    select(Name, Gender, Peak_Year, Year, Total_Weeks, Prev, Total, Pct) %>%
+    mutate(Pct = paste0("+", round(Pct, 0), "%"),
+           Gender = if_else(Gender == "F", "Girl", "Boy")) %>%
+    slice_head(n = 12) %>%
+    kable(col.names = c("Name", "Gender", "Chart Peak", "Name Surge Year",
+                         "Billboard Weeks", "Prev Births", "Surge Births", "Pct"),
+          caption = "Billboard Artists Whose Fame Coincides with Baby Name Surges")
+```
+
+**Key findings:**
+
+- **Whitney** is the clearest example: Billboard dominance → massive baby name surge.
+- **Elvis** shows a mid-1950s spike timed with his breakthrough.
+- Effect is strongest for **solo female artists** with distinctive first names.
+
+# 2.6 HBO & TV/Movie Influence
+
+## 2.6.1 HBO Name Trends
+
+```{r hbo-process}
+hbo_names   <- extract_hbo_names(HBO_credits, HBO_titles)
+hbo_popular <- summarise_hbo_names(hbo_names)
+```
+
+```{r hbo-plot, fig.height=7}
+hbo_spotlight     <- c("Carrie", "Arya", "Dorothy", "Tony", "Sophia", "Olivia")
+hbo_baby_overlay  <- build_hbo_baby_overlay(hbo_spotlight, national, hbo_names)
+
+hbo_baby_overlay %>%
+    ggplot(aes(x = Year, y = Total)) +
+    geom_line(colour = "#264653", linewidth = 0.8) +
+    facet_wrap(~ Name, scales = "free_y", ncol = 2) +
+    labs(title = "HBO Character / Actor Names and Baby Name Trajectories",
+         subtitle = "Exploring whether popular TV characters influence naming",
+         x = NULL, y = "Births / Year") +
+    theme_minimal(base_size = 11) +
+    theme(strip.text = element_text(face = "bold"))
+```
+
+**Key findings:**
+
+- **Arya** was nearly non-existent before *Game of Thrones* (2011) — textbook cultural naming.
+- **Tony** (The Sopranos) had an established baseline — cultural reinforcement rather than creation.
+- **Sophia** and **Olivia** rose independently of any single show.
+
+# 2.7 Decade Bubble Visualisation
+
+## 2.7.1 Boys
+
+```{r bubble-boys, fig.height=8, fig.width=12}
+boys_bubble <- top_names_by_decade(national, "M", n = 10)
+
+cultural_boy_names <- c("Elvis", "Barack", "Jayden", "Muhammad", "Kanye")
+
+boys_bubble %>%
+    mutate(Cultural = if_else(Name %in% cultural_boy_names, "Cultural link", "Standard")) %>%
+    ggplot(aes(x = reorder(Name, -Total), y = Decade, size = Total, colour = Cultural)) +
+    geom_point(alpha = 0.7) +
+    scale_size_continuous(range = c(2, 15), labels = comma) +
+    scale_colour_manual(values = c("Cultural link" = "#E76F51", "Standard" = "#2A9D8F")) +
+    labs(title = "Most Popular Boys' Names by Decade",
+         subtitle = "Bubble size = total births; orange = culturally-driven name",
+         x = NULL, y = NULL, size = "Total Births") +
+    theme_minimal(base_size = 11) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          legend.position = "right")
+```
+
+## 2.7.2 Girls
+
+```{r bubble-girls, fig.height=8, fig.width=12}
+girls_bubble <- top_names_by_decade(national, "F", n = 10)
+
+cultural_girl_names <- c("Whitney", "Ariel", "Miley", "Aaliyah",
+                          "Khaleesi", "Daenerys", "Madonna", "Arya")
+
+girls_bubble %>%
+    mutate(Cultural = if_else(Name %in% cultural_girl_names, "Cultural link", "Standard")) %>%
+    ggplot(aes(x = reorder(Name, -Total), y = Decade, size = Total, colour = Cultural)) +
+    geom_point(alpha = 0.7) +
+    scale_size_continuous(range = c(2, 15), labels = comma) +
+    scale_colour_manual(values = c("Cultural link" = "#E76F51", "Standard" = "#264653")) +
+    labs(title = "Most Popular Girls' Names by Decade",
+         subtitle = "Bubble size = total births; orange = culturally-driven name",
+         x = NULL, y = NULL, size = "Total Births") +
+    theme_minimal(base_size = 11) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          legend.position = "right")
+```
+
+# 2.8 Name Diversity Over Time
+
+```{r diversity-plot, fig.height=5}
+diversity_df <- build_diversity_df(national)
+
+diversity_df %>%
+    mutate(Gender = if_else(Gender == "F", "Girls", "Boys")) %>%
+    ggplot(aes(x = Year, y = Names_for_50pct, colour = Gender)) +
+    geom_line(linewidth = 0.9) +
+    scale_colour_manual(values = c("Girls" = "#E76F51", "Boys" = "#2A9D8F")) +
+    labs(title = "Naming Diversity Is Exploding",
+         subtitle = "Number of unique names needed to cover 50% of all births",
+         x = NULL, y = "Names for 50% Coverage", colour = NULL) +
+    theme_minimal(base_size = 13) +
+    theme(legend.position = "top")
+```
+
+**Key findings:**
+
+- In 1910, fewer than **10 names** covered half of all births per gender.
+- By 2014, it takes **50+** (boys) and **100+** (girls) names to reach the same threshold.
+- Confirms the persistence analysis: modern parents are far more creative.
+
+# 2.9 All-Time Top Names
+
+## 2.9.1 Girls
+
+```{r top10-girls, fig.height=6}
+national %>%
+    filter(Name %in% get_alltime_top(national, "F"), Gender == "F") %>%
+    ggplot(aes(x = Year, y = Total, colour = Name)) +
+    geom_line(linewidth = 0.7) +
+    scale_y_continuous(labels = comma) +
+    labs(title = "All-Time Top 10 Girls' Names — Trajectories",
+         subtitle = "Each name shows a clear rise-and-fall lifecycle",
+         x = NULL, y = "Births / Year") +
+    theme_minimal(base_size = 12)
+```
+
+## 2.9.2 Boys
+
+```{r top10-boys, fig.height=6}
+national %>%
+    filter(Name %in% get_alltime_top(national, "M"), Gender == "M") %>%
+    ggplot(aes(x = Year, y = Total, colour = Name)) +
+    geom_line(linewidth = 0.7) +
+    scale_y_continuous(labels = comma) +
+    labs(title = "All-Time Top 10 Boys' Names — Trajectories",
+         subtitle = "Classic boys' names persist far longer than girls'",
+         x = NULL, y = "Births / Year") +
+    theme_minimal(base_size = 12)
+```
+
+# 2.10 Summary & Recommendations
+
+```{r summary-table,echo=FALSE}
+tribble(
+    ~Finding,                                                           ~Evidence,
+    "Post-1990 names are less persistent",                              "Spearman rho drops significantly for 1–3 year lags after 1990",
+    "Girls' names churn faster than boys'",                             "Lower persistence rho and faster diversity growth for girls",
+    "Naming diversity has exploded",                                    "50%-coverage threshold grew from ~10 to 100+ names",
+    "TV shows create instant name spikes",                              "Katina (1974), Arya/Khaleesi (2011+), Miley (2006)",
+    "Music icons drive sustained naming trends",                        "Whitney (1985–92), Elvis (1950s), Aaliyah (1990s)",
+    "Political figures can spike baby names",                           "Barack surged during the 2008 campaign",
+    "Cultural names are individually smaller but collectively impactful","Each fad peaks lower but total variety is much higher"
+) %>%
+    kable(caption = "Summary of Key Findings for the Toy Agency")
+```
+
+**Recommendations for the toy agency:**
+
+- **Monitor Billboard & streaming charts** — artist first names influence baby naming within 1–3 years of peak fame.
+- **Track new TV/streaming character names** — unique fantasy names can emerge from zero to thousands within 2–3 years.
+- **Don't bet on longevity** — modern name trends last \~5–10 years at most; refresh toy character names every product cycle.
+- **Classic names still have a floor** — James, William, Sophia, and Olivia remain safe bets for broad-market appeal.
+
+# Question 3: Loan and Credit Analysis
+
+I cleaned a one-million-row loan dataset (dropping columns more than 80% empty, fixing rate/term/employment formatting), and defined a clear default outcome on closed loans only, giving a 22.5% baseline. I used `map` to compute default rates across seven borrower characteristics, then addressed the Director's DTI hard-cap question with a tolerance table, ran formal hypothesis tests (`prop.test` for Texas, `chisq.test` for states), and tested the Institute's three beliefs. I found that credit grade and interest rate dominate risk, Texas is statistically unremarkable, and a single national DTI cap is justified and I closed with concrete recommendations. See `Question_3` folder for knitted file.
+
+# 3.1 Loading and Cleaning
+
+```{r load}
+Loan_raw <- load_loan_data("Question_3/data/Loan_Cred/loan_data.rds")
+glue("Raw data: {nrow(Loan_raw)} loans across {ncol(Loan_raw)} columns")
+```
+
+The dataset has a lot of columns, many of which are mostly empty. We clean by removing those, fixing formatting issues, and creating a clear loan outcome label.
+
+```{r clean}
+Loan_df <- Loan_raw %>%
+    clean_names() %>%
+    {if ("int_rate"   %in% names(.)) mutate(., int_rate   = clean_int_rate(int_rate))   else .} %>%
+    {if ("emp_length" %in% names(.)) mutate(., emp_length = clean_emp_length(emp_length)) else .} %>%
+    {if ("term"       %in% names(.)) mutate(., term       = clean_term(term))             else .} %>%
+    drop_mostly_empty(cutoff = 0.80) %>%
+    mutate(
+        loan_outcome = classify_loan(loan_status),
+        is_default   = as.integer(loan_outcome == "Default")
+    )
+
+glue("After cleaning: {nrow(Loan_df)} loans, {ncol(Loan_df)} columns")
+```
+
+```{r add-features}
+# find whichever FICO columns survived
+fico_low  <- names(Loan_df)[str_detect(names(Loan_df), "fico.*low")][1]
+fico_high <- names(Loan_df)[str_detect(names(Loan_df), "fico.*high")][1]
+
+Loan_df <- Loan_df %>%
+    mutate(
+        fico_mid = if (!is.na(fico_low) & !is.na(fico_high))
+            (.data[[fico_low]] + .data[[fico_high]]) / 2 else NA_real_,
+
+        income_band = cut(annual_inc,
+                          breaks = c(0, 30000, 50000, 75000, 100000, 150000, Inf),
+                          labels = c("<30k","30-50k","50-75k","75-100k","100-150k","150k+")),
+
+        dti_band = cut(dti, breaks = c(0, 10, 15, 20, 25, 30, Inf),
+                       labels = c("<10","10-15","15-20","20-25","25-30","30+")),
+
+        emp_group = case_when(
+            is.na(emp_length) ~ "Unknown",
+            emp_length == 0   ~ "<1 yr",
+            emp_length <= 3   ~ "1-3 yrs",
+            emp_length <= 5   ~ "4-5 yrs",
+            emp_length <= 9   ~ "6-9 yrs",
+            TRUE              ~ "10+ yrs"),
+
+        term_label = if_else(term == 36, "36 months", "60 months")
+    )
+```
+
+How the loans break down by outcome:
+
+```{r outcome}
+Loan_df %>%
+    count(loan_outcome, sort = TRUE) %>%
+    mutate(share = sprintf("%.1f%%", n / sum(n) * 100)) %>%
+    kable(col.names = c("Outcome", "Count", "Share"), format = "pipe")
+```
+
+**Reading the outcome split.** We start with **1,000,000 loans and 145 columns**; dropping any column that is more than 80% empty leaves 108 usable columns without throwing away a single loan. Most of the book is still **live** — 59.8% of loans are *Current* and haven't reached a final outcome yet, so they can't tell us anything about repayment. *Fully Paid* (29.7%) and *Default* (8.6%) are the only **resolved** outcomes, with a small *Other* bucket (1.9%, e.g. charged-off/grace categories that don't map cleanly).
+
+From here we focus on **closed loans only** (Fully Paid vs Default) so the comparisons are fair.
+
+```{r closed}
+closed <- Loan_df %>% filter(loan_outcome %in% c("Fully Paid", "Default"))
+glue("{nrow(closed)} closed loans — overall default rate: {sprintf('%.1f%%', mean(closed$is_default)*100)}")
+```
+
+**Why the default rate jumps to 22.5%.** Restricting to the **383,202 resolved loans** changes the denominator: defaults are 8.6% of the *whole* book but **22.5% of loans that have actually finished** (86,079 ÷ 383,202). This conditional rate is the honest baseline for the rest of the analysis — every group default rate below should be read against this **22.5% benchmark**: above it = riskier than average, below it = safer.
+
+------------------------------------------------------------------------
+
+# 3.2 What Drives Defaults?
+
+We check default rates across the main borrower characteristics using `map` to loop through them all at once.
+
+```{r rates}
+vars_to_check <- c("grade", "purpose", "term_label",
+                    "home_ownership", "emp_group", "income_band", "dti_band")
+
+rate_tables <- vars_to_check %>%
+    set_names() %>%
+    map(~ default_rate_by(Loan_df, .x))
+```
+
+## 3.2.1 Credit Grade
+
+```{r grade-plot, fig.height=4}
+rate_tables$grade %>%
+    ggplot(aes(x = grade, y = default_rate, fill = default_rate)) +
+    geom_col(show.legend = FALSE) +
+    geom_text(aes(label = sprintf("%.1f%%", default_rate*100)), vjust = -0.5, size = 3.5) +
+    scale_y_continuous(labels = percent, expand = expansion(mult = c(0, 0.12))) +
+    scale_fill_gradient(low = "#2C7A4B", high = "#C0392B") +
+    labs(title = "Default rate by credit grade",
+         subtitle = "Grade A borrowers are safest; risk climbs steadily toward G",
+         x = "Grade", y = "Default Rate") +
+    theme_q3()
+```
+
+**Credit grade is the single strongest signal.** Default rates climb almost perfectly monotonically — **A 6.9% → B 15.6% → C 25.3% → D 34.6% → E 43.1% → F 52.4% → G 57.3%**. A G-grade borrower is **roughly 8× more likely to default than an A-grade borrower**, and by grade E it is closer to a coin-flip than a loan. The grade boundary that matters most operationally is **C (25.3%), which is already above the 22.5% book average** — so risk crosses the "worse than typical" line as early as grade C, not at the D–G tail.
+
+## 3.2.2 Loan Purpose
+
+```{r purpose-plot, fig.height=5}
+rate_tables$purpose %>%
+    filter(n_loans >= 100) %>%
+    ggplot(aes(x = reorder(purpose, default_rate), y = default_rate)) +
+    geom_col(fill = "#C0392B", alpha = 0.8) +
+    geom_text(aes(label = sprintf("%.1f%%", default_rate*100)), hjust = -0.1, size = 3) +
+    scale_y_continuous(labels = percent, expand = expansion(mult = c(0, 0.15))) +
+    coord_flip() +
+    labs(title = "Default rate by loan purpose",
+         subtitle = "Small business loans are the riskiest by far",
+         x = NULL, y = "Default Rate") +
+    theme_q3()
+```
+
+**Small-business lending stands out as the riskiest purpose.** At **33.3%** it is well clear of the next tier — *renewable energy* (25.7%), *moving* (25.2%) and *medical* (24.7%) — all of which sit just above the book average. The largest category in practice, **debt consolidation (23.8%)**, is essentially average. The safest reasons to borrow are asset-backed or routine: **car (16.6%)**, **home improvement (19.3%)** and **credit card (19.5%)** all sit comfortably below 22.5%. The spread (16.6% → 33.3%) is meaningful but much narrower than the grade spread, so purpose is a useful secondary filter rather than a primary one.
+
+## 3.2.3 Loan Term and Home Ownership
+
+```{r term-home, fig.height=4}
+p1 <- rate_tables$term_label %>%
+    ggplot(aes(x = term_label, y = default_rate, fill = term_label)) +
+    geom_col(show.legend = FALSE) +
+    geom_text(aes(label = sprintf("%.1f%%", default_rate*100)), vjust = -0.5, size = 3.5) +
+    scale_y_continuous(labels = percent, expand = expansion(mult = c(0,0.15))) +
+    scale_fill_manual(values = c("#2980B9","#E74C3C")) +
+    labs(title = "By loan term", x = NULL, y = "Default Rate") + theme_q3()
+
+p2 <- rate_tables$home_ownership %>%
+    filter(n_loans >= 100) %>%
+    ggplot(aes(x = reorder(home_ownership, default_rate), y = default_rate)) +
+    geom_col(fill = "#8E44AD", alpha = 0.75) +
+    geom_text(aes(label = sprintf("%.1f%%", default_rate*100)), vjust = -0.5, size = 3.5) +
+    scale_y_continuous(labels = percent, expand = expansion(mult = c(0,0.15))) +
+    labs(title = "By home ownership", x = NULL, y = NULL) + theme_q3()
+
+p1 + p2
+```
+
+**Term length is a major driver; home ownership is a minor one.** Stretching a loan from 36 to 60 months nearly **doubles** the default rate (**19.0% → 34.5%**) — longer terms mean more time for a borrower's circumstances to deteriorate, and 60-month loans also tend to go to weaker credits. Home ownership moves the needle far less: **MORTGAGE 18.8% \< OWN 22.8% \< RENT 27.0%**. Renters default about 8 points more than mortgage-holders, but note the ordering — borrowers who **own outright (22.8%) default slightly more than those still paying a mortgage (18.8%)**, suggesting the mortgage group captures vetted, higher-income borrowers rather than ownership *per se* being protective.
+
+## 3.2.4 Income and DTI
+
+```{r income-dti, fig.height=4}
+p3 <- rate_tables$income_band %>%
+    filter(n_loans >= 50) %>%
+    ggplot(aes(x = income_band, y = default_rate)) +
+    geom_col(fill = "#27AE60", alpha = 0.8) +
+    geom_text(aes(label = sprintf("%.1f%%", default_rate*100)), vjust = -0.5, size = 3) +
+    scale_y_continuous(labels = percent, expand = expansion(mult = c(0,0.12))) +
+    labs(title = "By income band", x = NULL, y = "Default Rate") + theme_q3()
+
+p4 <- rate_tables$dti_band %>%
+    filter(n_loans >= 50) %>%
+    ggplot(aes(x = dti_band, y = default_rate)) +
+    geom_col(fill = "#E67E22", alpha = 0.8) +
+    geom_text(aes(label = sprintf("%.1f%%", default_rate*100)), vjust = -0.5, size = 3) +
+    scale_y_continuous(labels = percent, expand = expansion(mult = c(0,0.12))) +
+    labs(title = "By DTI band", x = NULL, y = NULL) + theme_q3()
+
+p3 + p4
+```
+
+**Both income and DTI behave exactly as theory predicts, and both are smooth gradients rather than cliffs.** Default risk falls steadily with income — **\<30k 28.7% → 150k+ 16.1%** — a \~13-point swing from the poorest to the richest band. It rises just as steadily with leverage — **DTI \<10 16.8% → 30+ 31.7%** — roughly doubling across the range. Two practical notes: the **`NA` bars (income 20.1%, DTI 21.5%) sit near the average**, so missing values aren't hiding unusually risky borrowers; and because the DTI relationship is a *gradient with no sharp break*, any hard DTI cut-off (Section 4) is a judgement call about where on the slope to draw the line, not a natural cliff in the data.
+
+------------------------------------------------------------------------
+
+# 3.3 Who Defaults Most?
+
+Putting it all together, the riskiest borrower profile looks like this:
+
+```{r risky-profile}
+tibble(
+    Factor = c("Credit Grade", "Loan Purpose", "Loan Term",
+               "Income", "DTI", "Home Ownership"),
+    `Highest Default Risk` = c(
+        "Grade F / G",
+        "Small business loans",
+        "60-month (long term)",
+        "Below $30k",
+        "Above 25",
+        "Renters (slightly higher)")
+) %>%
+    kable(format = "pipe")
+```
+
+**The risk factors stack.** None of these is the whole story on its own, but they compound: a low-grade, low-income borrower taking a 60-month small-business loan at high DTI carries risk from every column at once, which is exactly the profile that pushes well past the 22.5% baseline toward the 40–55% range seen in the grade and interest-rate views.
+
+And if we look at interest rate — borrowers paying higher rates are more likely to default:
+
+```{r int-rate-plot, fig.height=4}
+closed %>%
+    mutate(rate_band = cut(int_rate, breaks = seq(4, 28, by = 3), include.lowest = TRUE)) %>%
+    filter(!is.na(rate_band)) %>%
+    group_by(rate_band) %>%
+    summarise(default_rate = mean(is_default), n = n(), .groups = "drop") %>%
+    filter(n >= 30) %>%
+    ggplot(aes(x = rate_band, y = default_rate, group = 1)) +
+    geom_line(linewidth = 1, color = "#2980B9") +
+    geom_point(size = 2.5, color = "#2980B9") +
+    scale_y_continuous(labels = percent) +
+    labs(title = "Default rate by interest rate",
+         subtitle = "Higher rates correlate with more defaults",
+         x = "Interest Rate Range (%)", y = "Default Rate") +
+    theme_q3() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+**Interest rate is the cleanest monotonic predictor of all.** Default rate climbs almost in a straight line from **\~5.5% in the 4–7% rate band to \~49% in the 25–28% band** — close to a 9× gradient with no reversal. This is partly mechanical (the lender already prices observed risk into the rate, so rate is a *summary* of grade, term and DTI), and partly a feedback loop worth flagging: the highest-rate borrowers are the ones least able to absorb a high rate, so the pricing that is meant to compensate for risk may itself **add** to it. Because rate bundles the other signals, it is the most useful single field for a quick risk read, but it should not be treated as an *independent* cause.
+
+------------------------------------------------------------------------
+
+# 3.4 DTI Hard-Cap: What Should It Be?
+
+The Director wants a recommended Debt-to-Income (DTI) cutoff. Let's look at how default rate changes as DTI rises.
+
+```{r dti-curve, fig.height=4.5}
+dti_curve <- closed %>%
+    filter(!is.na(dti)) %>%
+    mutate(dti_bin = cut(dti, breaks = seq(0, 40, by = 2), include.lowest = TRUE)) %>%
+    group_by(dti_bin) %>%
+    summarise(default_rate = mean(is_default), n = n(), .groups = "drop") %>%
+    filter(n >= 30)
+
+dti_curve %>%
+    ggplot(aes(x = dti_bin, y = default_rate, group = 1)) +
+    geom_line(linewidth = 1, color = "#2980B9") +
+    geom_point(size = 2.5, color = "#2980B9") +
+    scale_y_continuous(labels = percent) +
+    labs(title = "Default rate by DTI",
+         subtitle = "Risk picks up noticeably above DTI of ~25",
+         x = "DTI Range", y = "Default Rate") +
+    theme_q3() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+**The curve has a flat floor and then a steady climb — no clean cliff.** From DTI 0 to \~10 the default rate is essentially flat at its **floor of \~17%** (it even dips slightly around 8–10). It then rises continuously: \~20% by DTI 14, \~24% by DTI 22, \~28% by DTI 28, and into the **32–34% range above DTI 34**. The key takeaway for setting a cap is that the curve **accelerates through the low-to-mid 20s** — that is the "elbow" the subtitle refers to — but there is no single DTI value where risk suddenly explodes, so the cap is a risk-appetite choice along a smooth slope.
+
+Suggested caps depending on how much risk the Institute is willing to accept:
+
+```{r dti-caps}
+tolerances <- c(0.12, 0.15, 0.18, 0.20)
+
+dti_caps <- map_dfr(tolerances, function(tol) {
+    cap <- dti_curve %>%
+        filter(default_rate <= tol) %>%
+        pull(dti_bin) %>%
+        as.character() %>%
+        str_extract("\\d+(?=\\])") %>%
+        as.numeric() %>%
+        max(na.rm = TRUE)
+    tibble(`Risk tolerance` = sprintf("%.0f%%", tol*100),
+           `Suggested DTI cap` = cap)
+})
+
+dti_caps %>% kable(format = "pipe")
+```
+
+**Important: read this table together with the floor of the curve.** The rule here is *"find the highest DTI band whose default rate still sits at or below the chosen tolerance."* Because the **minimum default rate anywhere on the curve is \~16.8%**, any tolerance *below* that floor is unachievable — that is why **12% and 15% return `-Inf`** (no band qualifies, so the maximum of an empty set is `-Inf`). Only the **18% (cap ≈ 12)** and **20% (cap ≈ 16)** tolerances are attainable, and even those force a strict cut-off because the whole closed book averages 22.5%.
+
+So there are **two legitimate ways to set the cap, and they give different numbers**:
+
+- **Absolute-tolerance rule (this table):** to hold defaults at/under \~18–20%, the cap must be tight — **DTI ≈ 12–16**.
+- **Elbow / "where risk accelerates" rule (the curve):** if the goal is instead to cut off the steep part of the slope rather than hit an absolute rate, the cap lands higher, around **DTI 20–25**.
+
+The right choice depends on the Director's objective (a hard loss target vs. trimming the worst of the tail); the recommendation in Section 7 is framed around the elbow, but the absolute-tolerance numbers above are the stricter, loss-target answer.
+
+## 3.4.1 Does it differ by state?
+
+```{r dti-state, fig.height=4.5}
+closed %>%
+    filter(!is.na(dti)) %>%
+    mutate(region = if_else(addr_state == "TX", "Texas", "Other States"),
+           dti_bin = cut(dti, breaks = seq(0, 40, by = 3), include.lowest = TRUE)) %>%
+    group_by(dti_bin, region) %>%
+    summarise(default_rate = mean(is_default), n = n(), .groups = "drop") %>%
+    filter(n >= 20) %>%
+    ggplot(aes(x = dti_bin, y = default_rate, color = region, group = region)) +
+    geom_line(linewidth = 1) + geom_point(size = 2) +
+    scale_color_manual(values = c("Texas" = "#C0392B", "Other States" = "#2980B9")) +
+    scale_y_continuous(labels = percent) +
+    labs(title = "DTI vs Default: Texas compared to the rest",
+         x = "DTI Range", y = "Default Rate", color = NULL) +
+    theme_q3() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+**Texas and the rest of the country trace essentially the same DTI curve.** The two lines overlap closely across the whole range — Texas is marginally higher at very low DTI and marginally lower in the low-20s, but the differences are within noise and both rise from \~17% to the low-30s in lockstep. There is **no evidence that the DTI–default relationship is structurally different in Texas**, which is what justifies a single national cap rather than a Texas-specific one.
+
+------------------------------------------------------------------------
+
+# 3.5 Is Texas Different?
+
+```{r texas-table}
+closed %>%
+    mutate(region = if_else(addr_state == "TX", "Texas", "Other States")) %>%
+    group_by(region) %>%
+    summarise(
+        Loans = n(),
+        `Default Rate` = sprintf("%.1f%%", mean(is_default)*100),
+        `Avg Loan` = sprintf("$%s", comma(round(mean(loan_amnt)))),
+        `Avg Income` = sprintf("$%s", comma(round(mean(annual_inc)))),
+        `Avg DTI` = round(mean(dti, na.rm = TRUE), 1),
+        `Avg Interest Rate` = sprintf("%.1f%%", mean(int_rate, na.rm = TRUE)),
+        .groups = "drop"
+    ) %>%
+    kable(format = "pipe")
+```
+
+**On the headline numbers Texas is unremarkable.** Its **default rate (22.8%) is just 0.4 points above the rest of the country (22.4%)**, on a large sample of 32,383 Texan loans. The profile differences are small and mostly cancel out: Texan borrowers carry slightly **higher income (\$83.5k vs \$78.4k)** *and* slightly **higher leverage (DTI 19.8 vs 18.7)** and larger loans, while being charged an **identical average interest rate (13.0%)**. In other words, Texas looks like a slightly higher-income, slightly more-leveraged version of the national book, and the two effects roughly offset.
+
+```{r texas-test}
+tx <- closed %>% mutate(is_tx = addr_state == "TX")
+ptest <- prop.test(
+    x = c(sum(tx$is_default[tx$is_tx]), sum(tx$is_default[!tx$is_tx])),
+    n = c(sum(tx$is_tx), sum(!tx$is_tx))
+)
+```
+
+Proportion test p-value: **`r format.pval(ptest$p.value, digits = 3)`**. Texas is **`r if_else(ptest$p.value < 0.05, "statistically different", "not significantly different")`** from the national average.
+
+**Interpreting the test.** With a p-value of **0.151 (\> 0.05)** we cannot reject the null that Texas defaults at the same rate as everywhere else. Note this is a case where the **huge sample makes the test sensitive to even tiny gaps**, yet the 0.4-point difference is still *not* significant — strong evidence that the gap is genuinely just noise rather than a real Texas effect.
+
+## 3.5.1 How do all states compare?
+
+```{r state-plot, fig.height=7}
+closed %>%
+    group_by(addr_state) %>%
+    summarise(n = n(), default_rate = mean(is_default), .groups = "drop") %>%
+    filter(n >= 200) %>%
+    mutate(is_tx = addr_state == "TX") %>%
+    ggplot(aes(x = reorder(addr_state, default_rate), y = default_rate)) +
+    geom_segment(aes(xend = reorder(addr_state, default_rate),
+                     y = 0, yend = default_rate), color = "grey70") +
+    geom_point(aes(color = is_tx, size = n)) +
+    scale_color_manual(values = c("grey40", "#C0392B"),
+                       labels = c("Other", "Texas"), name = NULL) +
+    scale_size_continuous(name = "Loans", labels = comma) +
+    scale_y_continuous(labels = percent) +
+    coord_flip() +
+    labs(title = "Default rates by state",
+         subtitle = "Texas in red — states with 200+ loans shown",
+         x = NULL, y = "Default Rate") +
+    theme_q3()
+```
+
+**Texas sits squarely in the middle of the pack.** The state spread runs from roughly **\~13% (DC, ME, OR at the safe end) to \~26–27% (AR, LA, MS, OK, AL at the risky end)** — a real \~13-point range, so states genuinely do differ overall (see Belief 2). But **Texas (red) lands mid-table at \~22.8%**, close to the national average and nowhere near either extreme. The riskiest states cluster in the Deep South, while the safest are a mix of small-volume states; Texas is simply a big, average market.
+
+------------------------------------------------------------------------
+
+# 3.6 Testing the Institute's Beliefs
+
+The Institute holds three long-standing beliefs. Let's check them against the data.
+
+## 3.6.1 Belief 1: Homeowners employed 10+ years default less on short-term loans
+
+```{r h1}
+closed %>%
+    filter(term == 36) %>%
+    mutate(group = case_when(
+        home_ownership %in% c("OWN","MORTGAGE") & emp_length >= 10 ~ "Homeowner & 10+ yrs",
+        TRUE ~ "Everyone else"
+    )) %>%
+    group_by(group) %>%
+    summarise(Loans = n(),
+              `Default Rate` = sprintf("%.1f%%", mean(is_default)*100),
+              .groups = "drop") %>%
+    kable(format = "pipe")
+```
+
+**Directionally true, but the effect is moderate.** Among 36-month loans, the "homeowner **and** 10+ years employed" group defaults at **14.6%** versus **20.3%** for everyone else — a **5.7-point** improvement, or about **28% lower** in relative terms. That is a real, useful reduction, but the favoured group still defaults at nearly **1 in 7**, so the combination is a helpful *positive signal*, not a guarantee of repayment. Hence **partially supported** — stability helps, but it doesn't override grade, term or DTI risk.
+
+## 3.6.2 Belief 2: States differ significantly on short-term defaults
+
+```{r h2}
+h2_data <- closed %>% filter(term == 36)
+h2_test <- chisq.test(table(h2_data$addr_state, h2_data$is_default),
+                       simulate.p.value = TRUE)
+```
+
+Chi-squared p-value: **`r format.pval(h2_test$p.value, digits = 4)`** — this is **`r if_else(h2_test$p.value < 0.05, "significant, so yes, states do differ. Supported.", "not significant. Not supported.")`**
+
+**Interpreting the test.** The chi-squared test (with simulated p-values, appropriate given the many sparse state cells) returns **p ≈ 0.0005**, far below 0.05, so the differences in short-term default rates across states are **statistically real, not random** — consistent with the \~13-point spread seen in the state plot. **Supported.** One caveat to keep in mind: "states differ" does **not** mean the *state itself* causes default — much of the gap likely reflects different borrower mixes (income, grade, purpose) across states rather than geography.
+
+## 3.6.3 Belief 3: Credit grades predict defaults well for younger borrowers
+
+We look at borrowers with lower FICO scores (below 680) as a proxy for less established credit histories.
+
+```{r h3, fig.height=4}
+has_fico <- "fico_mid" %in% names(closed) && !all(is.na(closed$fico_mid))
+
+if (has_fico) {
+    h3 <- closed %>% filter(fico_mid < 680)
+    h3_sub <- "Borrowers with FICO < 680"
+} else {
+    h3 <- closed
+    h3_sub <- "All borrowers (FICO not available)"
+}
+
+h3 %>%
+    group_by(grade) %>%
+    summarise(default_rate = mean(is_default), n = n(), .groups = "drop") %>%
+    ggplot(aes(x = grade, y = default_rate, fill = grade)) +
+    geom_col(show.legend = FALSE) +
+    geom_text(aes(label = sprintf("%.1f%%", default_rate*100)), vjust = -0.5, size = 3.5) +
+    scale_y_continuous(labels = percent, expand = expansion(mult = c(0, 0.12))) +
+    scale_fill_brewer(palette = "YlOrRd") +
+    labs(title = "Default rates by grade", subtitle = h3_sub,
+         x = "Grade", y = "Default Rate") +
+    theme_q3()
+```
+
+**Grade clearly separates risk — with one honest caveat about the test.** The step-up from **A 6.9% to G 57.3%** is exactly what a well-functioning grading system should produce, so grade is a strong predictor. **However**, the FICO columns did not survive cleaning (`fico_mid` is all `NA`), so the code fell back to its `else` branch and the subtitle reads *"All borrowers (FICO not available)"*. That means this chart shows grade's predictive power **across the whole closed book, not specifically the low-FICO / thin-file "younger" borrowers** the belief is about. The belief is therefore **supported for borrowers in general**, but with the data available we **cannot isolate the younger-borrower sub-group** — to test the belief as literally stated we would need the FICO fields restored upstream.
+
+## 3.6.4 Summary of beliefs
+
+```{r h-summary}
+tibble(
+    Belief = c(
+        "Homeowners + 10yr employment default less (short-term)",
+        "States differ on short-term defaults",
+        "Credit grades predict default for younger borrowers"
+    ),
+    Verdict = c(
+        "Partially supported — small difference",
+        if_else(h2_test$p.value < 0.05, "Supported", "Not supported"),
+        "Supported — clear pattern across grades"
+    )
+) %>% kable(format = "pipe")
+```
+
+**In short:** one belief is fully borne out (states differ), one holds at the overall level but couldn't be tested on the exact sub-group it claims (grades predict for younger borrowers FICO missing), and one is real but smaller than the Institute assumes (homeowner + tenure).
+
+------------------------------------------------------------------------
+
+# 3.7 Recommendations for the Director
+
+Based on the analysis, here are the main takeaways:
+
+**On DTI caps:** The DTI–default relationship is a smooth slope, not a cliff, so the cap is a risk-appetite decision. If the goal is to trim the steep part of the curve, a cap in the **DTI 20–25** range is reasonable (risk accelerates through the low-20s). If instead the goal is an absolute loss target, the numbers are stricter: holding defaults at/under \~18–20% requires a cap of only **DTI 12–16**, because the curve's floor is already \~17%. Either way a **single national cap** is justified — Texas and the rest of the country follow the same DTI curve.
+
+**On who defaults:** The strongest signals are **credit grade** (6.9% at A → 57.3% at G) and **interest rate** (≈5% → ≈49%), followed by **loan term** (36mo 19.0% vs 60mo 34.5%), **purpose** (small business 33.3% is the clear outlier), and the **income/DTI gradients**. Home ownership and employment length matter, but noticeably less than grade, term and DTI.
+
+**On credit grades:** The grading system works well and is the best single primary filter. It is even stronger when paired with DTI and (once restored) FICO checks, especially for the borderline **C/D grades that straddle the 22.5% book average**.
+
+**On interest rates:** High-rate borrowers default the most. Because the rate is set to compensate for risk yet may also worsen it, it is worth reviewing whether the very highest rate bands are pricing borrowers into failure rather than out of it.
+
+**On Texas:** Texas is statistically in line with the national book (22.8% vs 22.4%, p = 0.151) and mid-table among states — **no special treatment or separate policy needed.**
+
+**On the Institute's beliefs:** Two of three hold up. States genuinely differ; credit grades clearly separate risk (though the low-FICO sub-test couldn't be run because FICO data was dropped in cleaning); and the homeowner-plus-tenure effect is real but smaller (a \~5.7-point edge) than the Institute believes. A useful follow-up would be to **restore the FICO fields upstream** so Belief 3 can be tested on the borrowers it actually concerns.
+
+# Question 4: Netflix Analysis
+
+I combined three datasets (Titles, Movie_Info, Credits) through helper loaders, then ran a broad catalogue exploration: movies-vs-shows mix, release trends, top producing countries, genre preferences by country, IMDb score distributions, age certifications, runtime analysis, and a functional text-analysis pipeline of movie descriptions using `map`, plus the most prolific actors and directors. I framed my takeaways for an investor launching a competing platform and Netflix is movie-heavy and largely "average" in quality, so a rival could differentiate through original series, underserved geographies and a quality-over-quantity strategy. See `Question_4` folder.
+
+# 4.1 Introduction
+
+Netflix has experienced a decline in subscribers and share price in recent times. In this report we explore the Netflix content catalogue to understand what types of content dominate the platform, how ratings and movie lengths differ across countries and genres, and what themes emerge from movie descriptions.
+
+We work with three datasets:
+
+- **Titles**: All Netflix shows and movies with IMDb/TMDB scores, genres, countries and run-time.
+- **Movie_Info**: Netflix movies specifically, with directors, cast, age ratings and duration.
+- **Credits**: Actor and character information linked to titles.
+
+# 4.2 Data Loading & Preparation
+
+```{r load-data}
+# Load all three datasets using our sourced helper functions
+Titles <- load_titles("Question_4/data/netflix/titles.rds")
+Movie_Info <- load_movie_info("Question_4/data/netflix/netflix_movies.csv")
+Credits <- load_credits("Question_4/data/netflix/credits.rds")
+```
+
+# 4.3 Content Overview
+
+### 4.3.1 Movies vs Shows
+
+```{r type-split}
+# Count content types
+type_counts <- Titles %>%
+    count_top_n(type, n = 5)
+
+# Simple bar chart
+ggplot(type_counts, aes(x = reorder(type, n), y = n, fill = type)) +
+    geom_col(show.legend = FALSE) +
+    geom_text(aes(label = n), hjust = -0.2, size = 4) +
+    coord_flip() +
+    labs(title = "Netflix Content: Movies vs Shows",
+         x = NULL, y = "Number of Titles") +
+    theme_minimal() +
+    scale_fill_manual(values = c("MOVIE" = "#E50914", "SHOW" = "#564d4d"))
+```
+
+- Netflix's catalogue is heavily **movie-dominated**, which makes sense given movies are cheaper to license per title than multi-season shows.
+
+### 4.3.2 Release Year Trends
+
+```{r release-trend}
+# Titles per year, split by type
+Titles %>%
+    filter(release_year >= 1990) %>%
+    count(release_year, type) %>%
+    ggplot(aes(x = release_year, y = n, colour = type)) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 1.2, alpha = 0.6) +
+    labs(title = "Number of Titles by Release Year (post-1990)",
+         x = "Release Year", y = "Count", colour = "Type") +
+    theme_minimal() +
+    scale_colour_manual(values = c("MOVIE" = "#E50914", "SHOW" = "#221f1f"))
+```
+
+- Content additions ramp up sharply from around 2015, peaking in the late 2010s before levelling off , reflecting Netflix's massive investment in original content during that period.
+
+# 4.4 Country Analysis
+
+## 4.4.1 Top Producing Countries
+
+```{r top-countries}
+# Explode countries and count
+country_counts <- Titles %>%
+    explode_countries() %>%
+    count_top_n(country, n = 15)
+
+ggplot(country_counts, aes(x = reorder(country, n), y = n)) +
+    geom_col(fill = "#E50914") +
+    coord_flip() +
+    labs(title = "Top 15 Content-Producing Countries on Netflix",
+         x = NULL, y = "Number of Titles") +
+    theme_minimal()
+```
+
+- The **US** dominates by a massive margin, followed by **India** and the **UK**. This is expected given Netflix's origins and the size of Hollywood and Bollywood.
+
+## 4.4.2 Genre Preferences by Country (Top 5 Countries)
+
+```{r genre-by-country, fig.height=8}
+top5_countries <- country_counts %>% slice_head(n = 5) %>% pull(country)
+
+Titles %>%
+    explode_countries() %>%
+    filter(country %in% top5_countries) %>%
+    explode_genres() %>%
+    count(country, genre, sort = TRUE) %>%
+    group_by(country) %>%
+    slice_head(n = 5) %>%
+    ungroup() %>%
+    ggplot(aes(x = reorder_within(genre, n, country), y = n, fill = country)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~country, scales = "free_y", ncol = 1) +
+    coord_flip() +
+    scale_x_reordered() +
+    labs(title = "Top 5 Genres in Each of the Top 5 Producing Countries",
+         x = NULL, y = "Count") +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set1")
+```
+
+- **Drama** and **comedy** consistently appear across all major countries. **India** and **Great Britain** shows a strong preference for drama and comedy, while **Japan** leans towards animation and drama.
+
+# 4.5 Genre Analysis
+
+## 4.5.1 Most Popular Genres
+
+```{r genre-overall}
+genre_counts <- Titles %>%
+    explode_genres() %>%
+    count_top_n(genre, n = 12)
+
+ggplot(genre_counts, aes(x = reorder(genre, n), y = n)) +
+    geom_col(fill = "#831010") +
+    geom_text(aes(label = n), hjust = -0.15, size = 3.5) +
+    coord_flip() +
+    labs(title = "Most Common Genres on Netflix",
+         x = NULL, y = "Number of Titles") +
+    theme_minimal()
+```
+
+- **Drama** is by far the most common genre, followed by **comedy** and **action**. This suggests investors should prioritise drama content when building a catalogue.
+
+## 4.5.2 Genre Trends Over Time
+
+```{r genre-trend, fig.height=7}
+top6_genres <- genre_counts %>% slice_head(n = 6) %>% pull(genre)
+
+Titles %>%
+    explode_genres() %>%
+    filter(genre %in% top6_genres, release_year >= 2000) %>%
+    count(release_year, genre) %>%
+    ggplot(aes(x = release_year, y = n, colour = genre)) +
+    geom_line(linewidth = 1) +
+    labs(title = "Genre Trends Over Time (Top 6 Genres, post-2000)",
+         x = "Release Year", y = "Count", colour = "Genre") +
+    theme_minimal() +
+    scale_colour_brewer(palette = "Set2")
+```
+
+- All genres see exponential growth from \~2015 onwards. **Drama** consistently leads. **Documentation** (documentaries) has also seen a strong rise, suggesting growing viewer appetite for non-fiction content.
+
+# 4.6 Ratings & Scores
+
+## 4.6.1 IMDb Score Distribution
+
+```{r imdb-dist}
+Titles %>%
+    filter(!is.na(imdb_score)) %>%
+    ggplot(aes(x = imdb_score)) +
+    geom_histogram(binwidth = 0.3, fill = "#E50914", colour = "white", alpha = 0.85) +
+    geom_vline(aes(xintercept = median(imdb_score, na.rm = TRUE)),
+               linetype = "dashed", colour = "black", linewidth = 0.8) +
+    labs(title = "Distribution of IMDb Scores Across Netflix Titles",
+         subtitle = "Dashed line = median score",
+         x = "IMDb Score", y = "Count") +
+    theme_minimal()
+```
+
+- Scores are roughly normally distributed and centre around 6-7, with relatively few titles scoring above 8. The platform carries a mix of quality and not everything is a hit.
+
+## 4.6.2 IMDb Scores by Genre
+
+```{r score-by-genre}
+Titles %>%
+    explode_genres() %>%
+    filter(genre %in% top6_genres, !is.na(imdb_score)) %>%
+    ggplot(aes(x = reorder(genre, imdb_score, FUN = median), y = imdb_score, fill = genre)) +
+    geom_boxplot(show.legend = FALSE, alpha = 0.8) +
+    coord_flip() +
+    labs(title = "IMDb Score Distribution by Genre (Top 6)",
+         x = NULL, y = "IMDb Score") +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set2")
+```
+
+- **Documentation** (documentaries) tend to score slightly higher on average, while **action** and **comedy** show wider variance. This suggests documentaries are a safer bet quality-wise.
+
+## 4.6.3 Scores by Country (Top 10)
+
+```{r score-by-country, fig.height=7}
+top10_countries <- country_counts %>% slice_head(n = 10) %>% pull(country)
+
+Titles %>%
+    explode_countries() %>%
+    filter(country %in% top10_countries, !is.na(imdb_score)) %>%
+    ggplot(aes(x = reorder(country, imdb_score, FUN = median), y = imdb_score, fill = country)) +
+    geom_boxplot(show.legend = FALSE, alpha = 0.8) +
+    coord_flip() +
+    labs(title = "IMDb Score Distribution by Country (Top 10 Producing Countries)",
+         x = NULL, y = "IMDb Score") +
+    theme_minimal()
+```
+
+- Countries like the **Korea Republic** tend to produce higher-rated content on average, while **India's** larger volume comes with a wider spread of quality.
+
+## 4.6.4 Age Certification Breakdown
+
+```{r age-cert}
+Titles %>%
+    filter(!is.na(age_certification), age_certification != "") %>%
+    count_top_n(age_certification, n = 10) %>%
+    ggplot(aes(x = reorder(age_certification, n), y = n)) +
+    geom_col(fill = "#564d4d") +
+    coord_flip() +
+    labs(title = "Content by Age Certification",
+         x = NULL, y = "Count") +
+    theme_minimal()
+```
+
+- A large portion of content is rated **R** or **TV-MA**, indicating Netflix skews towards adult-oriented content. Investors wanting a family-friendly platform would need to fill a different niche.
+
+# 4.7 Movie Length Analysis
+
+## 4.7.1 Distribution of Movie Runtimes
+
+```{r runtime-dist}
+# Filter to movies only and remove extreme outliers
+movies_only <- Titles %>%
+    filter(type == "MOVIE", !is.na(runtime), runtime > 0, runtime < 300)
+
+ggplot(movies_only, aes(x = runtime)) +
+    geom_histogram(binwidth = 5, fill = "#E50914", colour = "white", alpha = 0.85) +
+    geom_vline(aes(xintercept = median(runtime)),
+               linetype = "dashed", colour = "black", linewidth = 0.8) +
+    labs(title = "Distribution of Movie Runtimes on Netflix",
+         subtitle = "Dashed line = median",
+         x = "Runtime (minutes)", y = "Count") +
+    theme_minimal()
+```
+
+- The typical Netflix movie is around **90-100 minutes** long. There's a nice bell-shaped distribution with a slight right tail from longer epic-style movies.
+
+## 4.7.2 Run-time by Genre
+
+```{r runtime-by-genre}
+Titles %>%
+    filter(type == "MOVIE", !is.na(runtime), runtime > 0, runtime < 300) %>%
+    explode_genres() %>%
+    filter(genre %in% top6_genres) %>%
+    ggplot(aes(x = reorder(genre, runtime, FUN = median), y = runtime, fill = genre)) +
+    geom_boxplot(show.legend = FALSE, alpha = 0.8) +
+    coord_flip() +
+    labs(title = "Movie Runtime by Genre",
+         x = NULL, y = "Runtime (minutes)") +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set2")
+```
+
+- **Drama** and **action** movies tend to be the longest. **Comedy** and **animation** typically run shorter. This has cost implications, longer movies mean more production hours.
+
+## 4.7.3 Average Run-time Over Time
+
+```{r runtime-trend}
+movies_only %>%
+    filter(release_year >= 1980) %>%
+    group_by(release_year) %>%
+    summarise(avg_runtime = mean(runtime, na.rm = TRUE), .groups = "drop") %>%
+    ggplot(aes(x = release_year, y = avg_runtime)) +
+    geom_point(alpha = 0.5, colour = "#E50914") +
+    geom_smooth(method = "loess", se = TRUE, colour = "black", linewidth = 0.8) +
+    labs(title = "Average Movie Runtime Over Time",
+         x = "Release Year", y = "Average Runtime (min)") +
+    theme_minimal()
+```
+
+- There's a slight **decline** in average run-time in recent years, suggesting a trend towards shorter, more digestible content — likely influenced by streaming habits where viewers have shorter attention spans.
+
+# 4.8 Netflix Movies Deep Dive
+
+## 4.8.1 Duration Distribution
+
+```{r movieinfo-duration}
+Movie_Info %>%
+    filter(!is.na(duration_mins), duration_mins > 0, duration_mins < 300) %>%
+    ggplot(aes(x = duration_mins)) +
+    geom_histogram(binwidth = 5, fill = "#831010", colour = "white", alpha = 0.85) +
+    labs(title = "Duration of Netflix Movies (Movie_Info Dataset)",
+         x = "Duration (minutes)", y = "Count") +
+    theme_minimal()
+```
+
+## 4.8.2 Top Movie Categories
+
+```{r top-categories}
+Movie_Info %>%
+    explode_listed_in() %>%
+    count_top_n(category, n = 12) %>%
+    ggplot(aes(x = reorder(category, n), y = n)) +
+    geom_col(fill = "#E50914") +
+    coord_flip() +
+    labs(title = "Most Common Movie Categories on Netflix",
+         subtitle = "From the listed_in column in Movie_Info",
+         x = NULL, y = "Count") +
+    theme_minimal()
+```
+
+- **International Movies**, **Dramas**, and **Comedies** lead the pack. Netflix clearly invests heavily in international content to serve its global audience.
+
+## 4.8.3 Top Countries
+
+```{r movieinfo-countries}
+# Split the country column (comma-separated)
+Movie_Info %>%
+    separate_rows(country, sep = ",\\s*") %>%
+    mutate(country = str_trim(country)) %>%
+    filter(!is.na(country), country != "") %>%
+    count_top_n(country, n = 10) %>%
+    ggplot(aes(x = reorder(country, n), y = n)) +
+    geom_col(fill = "#564d4d") +
+    coord_flip() +
+    labs(title = "Top 10 Countries Producing Netflix Movies",
+         x = NULL, y = "Count") +
+    theme_minimal()
+```
+
+# 4.9 Textual Analysis of Descriptions
+
+We now look at the most common words used in Netflix movie descriptions to see what themes and topics dominate the platform.
+
+## 4.9.1 Word Frequencies (Titles Descriptions)
+
+```{r text-analysis}
+# Use our functional text pipeline from the helper functions
+word_freq <- Titles %>%
+    filter(type == "MOVIE") %>%
+    pull(description) %>%
+    get_word_freq(n = 25)
+
+ggplot(word_freq, aes(x = reorder(word, n), y = n)) +
+    geom_col(fill = "#E50914") +
+    coord_flip() +
+    labs(title = "Most Common Words in Netflix Movie Descriptions",
+         subtitle = "Stop words removed",
+         x = NULL, y = "Frequency") +
+    theme_minimal()
+```
+
+- Words like **"life"**, **"family"**, **"love"**, **"world"** and **"young"** dominate in titles. This tells us Netflix movies heavily revolve around relatable, human-centric themes and stories about people navigating life, relationships and coming-of-age.
+
+## 4.9.2 Word Frequencies by Type (Movie vs Show)
+
+```{r text-by-type, fig.height=8}
+# Use map to get word frequencies for each type
+word_by_type <- Titles %>%
+    split(.$type) %>%
+    map(~.x %>% pull(description) %>% get_word_freq(n = 15)) %>%
+    imap_dfr(~.x %>% mutate(type = .y))
+
+ggplot(word_by_type, aes(x = reorder_within(word, n, type), y = n, fill = type)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~type, scales = "free") +
+    coord_flip() +
+    scale_x_reordered() +
+    labs(title = "Top Words in Descriptions: Movies vs Shows",
+         x = NULL, y = "Frequency") +
+    theme_minimal() +
+    scale_fill_manual(values = c("MOVIE" = "#E50914", "SHOW" = "#564d4d"))
+```
+
+- Movies tend to focus more on individual stories ("life", "young", "love"), while shows lean towards group dynamics and ongoing narratives ("group", "series", "team").
+
+# 4.10 Notable Actors & Directors
+
+## 4.10.1 Most Prolific Actors on Netflix
+
+```{r top-actors}
+# Filter to actors only and count appearances
+top_actors <- Credits %>%
+    filter(role == "ACTOR") %>%
+    count_top_n(name, n = 15)
+
+ggplot(top_actors, aes(x = reorder(name, n), y = n)) +
+    geom_col(fill = "#E50914") +
+    coord_flip() +
+    labs(title = "Top 15 Most Prolific Actors on Netflix",
+         x = NULL, y = "Number of Titles") +
+    theme_minimal()
+```
+
+## 4.10.2 Most Prolific Directors
+
+```{r top-directors}
+top_directors <- Credits %>%
+    filter(role == "DIRECTOR") %>%
+    count_top_n(name, n = 15)
+
+ggplot(top_directors, aes(x = reorder(name, n), y = n)) +
+    geom_col(fill = "#831010") +
+    coord_flip() +
+    labs(title = "Top 15 Most Prolific Directors on Netflix",
+         x = NULL, y = "Number of Titles") +
+    theme_minimal()
+```
+
+# 4.11 Key Takeaways
+
+Based on the analysis, here are the main insights for investors looking to launch a competing streaming platform:
+
+1.  **Content Mix**: Netflix is **movie-heavy**. A new platform could differentiate by investing more in original series, which build subscriber loyalty through ongoing engagement.
+
+2.  **Geography**: The **US, India, and UK** dominate production. There's room to tap into underrepresented markets (Africa, Southeast Asia, Latin America) where content demand is growing.
+
+3.  **Genre Strategy**: **Drama** is king, but **documentaries** consistently score well and are cheaper to produce. Comedy and action have broad appeal but variable quality.
+
+4.  **Quality**: The median IMDb score hovers around 6.5 , a lot of Netflix content is "average." A quality-over-quantity strategy could be a competitive edge.
+
+5.  **Movie Length**: Movies are trending **shorter**, reflecting streaming viewing habits. Content under 100 minutes tends to perform well. This can also be due to the recent rise in Tiktok and Instagram reels.
+
+6.  **Themes**: Descriptions revolve around **life, family, love, and coming-of-age** stories. These universal themes have broad appeal across demographics.
+
+7.  **Talent**: A few actors and directors appear repeatedly securing exclusive deals with prolific talent could drive viewership.
